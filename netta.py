@@ -1479,114 +1479,76 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 
 @app.route('/')
 def index():
-    if current_user.is_authenticated:
-        current_user.last_seen = datetime.utcnow()
-        db.session.commit()
-        
-        posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
-        liked_posts = [like.post_id for like in current_user.likes]
-        
-        # Тестовые данные для правой колонки
-        trends = [
-            {'tag': 'NettaLaunch', 'count': '1.2K'},
-            {'tag': 'ФиолетоваяВселенная', 'count': '856'},
-            {'tag': 'КосмическийДизайн', 'count': '543'},
-            {'tag': 'НовыеГоризонты', 'count': '321'}
-        ]
-        
-        online_friends = [
-            {'username': 'Космонавт', 'avatar_color': '#a855f7'},
-            {'username': 'Звездочёт', 'avatar_color': '#7c3aed'},
-            {'username': 'Галактика', 'avatar_color': '#bf00ff'},
-            {'username': 'Нейтрон', 'avatar_color': '#5b21b6'}
-        ]
-        
-        html = DASHBOARD_HTML.replace('{{ current_user.username }}', current_user.username)\
-                            .replace('{{ current_user.full_name }}', current_user.full_name or current_user.username)\
-                            .replace('{{ current_user.avatar_color }}', current_user.avatar_color)\
-                            .replace('{{ current_user.bio }}', current_user.bio or '')
-        
-        # Добавляем посты
-        posts_html = ''
-        for post in posts:
-            post_html = f'''
-            <div class="post">
-                <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                    <div style="width: 50px; height: 50px; border-radius: 50%; background: {post.author.avatar_color}; 
-                         display: flex; align-items: center; justify-content: center; font-weight: bold; 
-                         margin-right: 1rem; border: 2px solid var(--purple-light);">
-                        {post.author.username[0].upper()}
-                    </div>
-                    <div>
-                        <div style="font-weight: bold;">
-                            {post.author.full_name or post.author.username}
-                        </div>
-                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
-                            {post.created_at.strftime('%d %b в %H:%M')}
-                        </div>
-                    </div>
+    try:
+        if current_user.is_authenticated:
+            current_user.last_seen = datetime.utcnow()
+            db.session.commit()
+            
+            posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
+            liked_posts = []
+            
+            # Если есть модель Like, получаем лайки пользователя
+            try:
+                liked_posts = [like.post_id for like in current_user.likes]
+            except:
+                liked_posts = []
+            
+            # Простой HTML для теста
+            return f'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Netta | Тест</title>
+                <style>
+                    body {{ background: #0a0a1a; color: white; font-family: sans-serif; padding: 2rem; }}
+                    .card {{ background: rgba(20, 15, 40, 0.9); padding: 2rem; border-radius: 20px; margin: 1rem 0; }}
+                </style>
+            </head>
+            <body>
+                <h1>🌌 Добро пожаловать в Netta, {current_user.username}!</h1>
+                <p>Это тестовая страница для отладки</p>
+                <div class="card">
+                    <h3>Ваши данные:</h3>
+                    <p>Username: {current_user.username}</p>
+                    <p>Email: {current_user.email}</p>
+                    <p>Постов: {len(posts)}</p>
                 </div>
-                
-                <div style="margin-bottom: 1rem; line-height: 1.6;">
-                    {post.content}
+                <div class="card">
+                    <a href="/logout" style="color: #a855f7;">Выйти</a>
                 </div>
-                
-                <div style="display: flex; gap: 2rem; color: rgba(255, 255, 255, 0.7);">
-                    <form method="POST" action="/like/{post.id}" style="display: inline;">
-                        <button type="submit" style="background: none; border: none; color: {"var(--purple-neon)" if post.id in liked_posts else "inherit"}; 
-                                cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                onmouseover="this.style.color='var(--purple-neon)';">
-                            <i class="fas fa-heart"></i> {post.likes} ❤️
-                        </button>
-                    </form>
-                    <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                            display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                            onmouseover="this.style.color='var(--purple-neon)';">
-                        <i class="fas fa-comment"></i> Комментировать
-                    </button>
-                </div>
+            </body>
+            </html>
+            '''
+        
+        # Если не авторизован - показываем логин
+        return LOGIN_HTML
+        
+    except Exception as e:
+        # Возвращаем ошибку для отладки
+        return f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Ошибка Netta</title>
+            <style>
+                body {{ background: #0a0a1a; color: white; padding: 2rem; font-family: monospace; }}
+                .error {{ color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: 10px; }}
+            </style>
+        </head>
+        <body>
+            <h1>🚨 Ошибка в Netta</h1>
+            <div class="error">
+                <h3>Ошибка: {str(e)}</h3>
+                <p>Тип: {type(e).__name__}</p>
             </div>
-            '''
-            posts_html += post_html
-        
-        html = html.replace('{% for post in posts %}\n            {{ post.content }}\n            {% endfor %}', posts_html)
-        
-        # Добавляем тренды
-        trends_html = ''
-        for trend in trends:
-            trends_html += f'''
-                    <div style="padding: 0.8rem; background: rgba(255, 255, 255, 0.03); border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                         onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                        <div style="font-weight: bold; color: var(--purple-light);">#{trend['tag']}</div>
-                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">{trend['count']} постов</div>
-                    </div>
-            '''
-        
-        html = html.replace('{% for trend in trends %}\n                    {{ trend.html }}\n                    {% endfor %}', trends_html)
-        
-        # Добавляем онлайн друзей
-        friends_html = ''
-        for friend in online_friends:
-            friends_html += f'''
-                    <div style="display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem; border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                         onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                        <div style="width: 40px; height: 40px; border-radius: 50%; background: {friend['avatar_color']}; 
-                             display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #10b981;">
-                            {friend['username'][0].upper()}
-                        </div>
-                        <div>
-                            <div style="font-weight: bold;">{friend['username']}</div>
-                            <div style="font-size: 0.8rem; color: #10b981;">
-                                <i class="fas fa-circle" style="font-size: 0.6rem;"></i> Онлайн
-                            </div>
-                        </div>
-                    </div>
-            '''
-        
-        html = html.replace('{% for friend in online_friends %}\n                    {{ friend.html }}\n                    {% endfor %}', friends_html)
-        
-        return html
-    return LOGIN_HTML
+            <p>Попробуйте:</p>
+            <ul>
+                <li><a href="/login" style="color: #a855f7;">Войти заново</a></li>
+                <li><a href="/register" style="color: #a855f7;">Создать новый аккаунт</a></li>
+            </ul>
+        </body>
+        </html>
+        ''', 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1758,7 +1720,36 @@ def not_found(error):
     </body>
     </html>
     ''', 404
-
+# Отладочный маршрут
+@app.route('/debug')
+def debug():
+    users = User.query.all()
+    posts = Post.query.all()
+    
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head><title>Debug Netta</title></head>
+    <body style="background: #0a0a1a; color: white; padding: 2rem;">
+        <h1>🐛 Отладка Netta</h1>
+        <h3>Пользователи ({len(users)}):</h3>
+        <ul>
+            {"".join(f"<li>{u.username} - {u.email}</li>" for u in users)}
+        </ul>
+        <h3>Посты ({len(posts)}):</h3>
+        <ul>
+            {"".join(f"<li>Пост #{p.id}: {p.content[:50]}...</li>" for p in posts)}
+        </ul>
+        <h3>Пути:</h3>
+        <ul>
+            <li><a href="/" style="color: #a855f7;">/ - Главная</a></li>
+            <li><a href="/login" style="color: #a855f7;">/login - Вход</a></li>
+            <li><a href="/register" style="color: #a855f7;">/register - Регистрация</a></li>
+            <li><a href="/logout" style="color: #a855f7;">/logout - Выход</a></li>
+        </ul>
+    </body>
+    </html>
+    '''
 # Запуск приложения
 if __name__ == '__main__':
     with app.app_context():
