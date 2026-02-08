@@ -415,7 +415,7 @@ LOGIN_HTML = '''<!DOCTYPE html>
             <h1 class="auth-title">ВОЙТИ В МЕТАВСЕЛЕННУЮ</h1>
             
             <!-- ФОРМА -->
-            <form method="POST" action="{{ url_for('login') }}">
+            <form method="POST" action="/login">
                 <div class="form-group">
                     <input type="text" name="username" class="input-neon" required 
                            placeholder="👤 Имя пользователя или Email">
@@ -433,7 +433,7 @@ LOGIN_HTML = '''<!DOCTYPE html>
             
             <!-- ССЫЛКИ -->
             <div class="auth-links">
-                <a href="{{ url_for('register') }}" class="auth-link">✨ СОЗДАТЬ АККАУНТ</a>
+                <a href="/register" class="auth-link">✨ СОЗДАТЬ АККАУНТ</a>
                 <a href="#" class="auth-link">🌌 ДЕМО-РЕЖИМ</a>
             </div>
         </div>
@@ -771,7 +771,7 @@ REGISTER_HTML = '''<!DOCTYPE html>
             
             <h1 class="auth-title">СТАТЬ ЧАСТЬЮ ВСЕЛЕННОЙ</h1>
             
-            <form method="POST" action="{{ url_for('register') }}">
+            <form method="POST" action="/register">
                 <div class="form-grid">
                     <div class="form-group">
                         <input type="text" name="username" class="input-neon" required 
@@ -809,7 +809,7 @@ REGISTER_HTML = '''<!DOCTYPE html>
             </form>
             
             <div class="auth-links">
-                <a href="{{ url_for('login') }}" class="auth-link">← ВЕРНУТЬСЯ К ВХОДУ</a>
+                <a href="/login" class="auth-link">← ВЕРНУТЬСЯ К ВХОДУ</a>
             </div>
         </div>
     </div>
@@ -1142,7 +1142,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
     <header class="header">
         <nav class="navbar">
             <!-- ЛОГО -->
-            <a href="{{ url_for('index') }}" class="logo">
+            <a href="/" class="logo">
                 <div class="logo-icon">N</div>
                 <div class="logo-text">etta</div>
             </a>
@@ -1172,7 +1172,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
                     <i class="fas fa-user-friends"></i>
                 </a>
                 
-                <a href="{{ url_for('logout') }}" class="nav-icon" title="Выйти">
+                <a href="/logout" class="nav-icon" title="Выйти">
                     <i class="fas fa-sign-out-alt"></i>
                 </a>
             </div>
@@ -1233,7 +1233,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
         <section class="feed">
             <!-- СОЗДАНИЕ ПОСТА -->
             <div class="create-post">
-                <form method="POST" action="{{ url_for('create_post') }}">
+                <form method="POST" action="/create_post">
                     <textarea name="content" class="post-editor" 
                               placeholder="🌌 Что происходит в вашей вселенной, {{ current_user.username }}?"></textarea>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1285,7 +1285,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
                 </div>
                 
                 <div style="display: flex; gap: 2rem; color: rgba(255, 255, 255, 0.7);">
-                    <form method="POST" action="{{ url_for('like_post', post_id=post.id) }}" style="display: inline;">
+                    <form method="POST" action="/like/{{ post.id }}" style="display: inline;">
                         <button type="submit" style="background: none; border: none; color: {% if post.id in liked_posts %}var(--purple-neon){% else %}inherit{% endif %}; 
                                 cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
                                 onmouseover="this.style.color='var(--purple-neon)';">
@@ -1591,7 +1591,7 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect('/')
     
     if request.method == 'POST':
         username = request.form['username']
@@ -1604,7 +1604,7 @@ def login():
             db.session.commit()
             login_user(user)
             flash('Добро пожаловать в метавселенную Netta! 🌌', 'success')
-            return redirect(url_for('index'))
+            return redirect('/')
         else:
             flash('Неверные данные. Попробуйте снова.', 'error')
     
@@ -1613,7 +1613,7 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect('/')
     
     if request.method == 'POST':
         username = request.form['username']
@@ -1656,7 +1656,7 @@ def register():
         db.session.commit()
         
         flash('Ваше пространство создано! Добро пожаловать в Netta! 🚀', 'success')
-        return redirect(url_for('login'))
+        return redirect('/login')
     
     return REGISTER_HTML
 
@@ -1665,7 +1665,7 @@ def register():
 def logout():
     logout_user()
     flash('Вы покинули вселенную Netta. Возвращайтесь скорее! 👋', 'success')
-    return redirect(url_for('login'))
+    return redirect('/login')
 
 @app.route('/create_post', methods=['POST'])
 @login_required
@@ -1676,7 +1676,7 @@ def create_post():
         db.session.add(post)
         db.session.commit()
         flash('Ваш пост запущен в космос! 🌠', 'success')
-    return redirect(url_for('index'))
+    return redirect('/')
 
 @app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
@@ -1694,11 +1694,10 @@ def like_post(post_id):
             like.post_id = post_id
             like.created_at = datetime.utcnow()
             post.likes += 1
-            # В реальной реализации нужно создать модель Like
         
         db.session.commit()
     
-    return redirect(url_for('index'))
+    return redirect('/')
 
 # Обработка 404
 @app.errorhandler(404)
