@@ -7,10 +7,7 @@ import os
 import json
 import random
 
-# ============ ИНИЦИАЛИЗАЦИЯ ============
 app = Flask(__name__)
-
-# Конфигурация
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'netta-ultra-mega-secret-2026')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///netta.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -19,8 +16,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# ============ МОДЕЛИ С ВСЕМИ ФУНКЦИЯМИ ============
-
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -28,25 +23,21 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     full_name = db.Column(db.String(100))
-    bio = db.Column(db.Text, default='Исследователь вселенной Netta 🌌')
+    bio = db.Column(db.Text, default='Исследователь вселенной Netta')
     avatar_color = db.Column(db.String(7), default='#7c3aed')
     cover_color = db.Column(db.String(7), default='#5b21b6')
     is_verified = db.Column(db.Boolean, default=False)
     is_premium = db.Column(db.Boolean, default=False)
-    xp = db.Column(db.Integer, default=0)  # Опыт пользователя
+    xp = db.Column(db.Integer, default=0)
     level = db.Column(db.Integer, default=1)
-    coins = db.Column(db.Integer, default=100)  # Внутренняя валюта
+    coins = db.Column(db.Integer, default=100)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    privacy = db.Column(db.String(20), default='public')  # public/friends/private
-    
-    # Статистика
+    privacy = db.Column(db.String(20), default='public')
     posts_count = db.Column(db.Integer, default=0)
     friends_count = db.Column(db.Integer, default=0)
     likes_received = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
-    
-    # Настройки
     theme = db.Column(db.String(20), default='dark')
     notifications = db.Column(db.Boolean, default=True)
     email_notifications = db.Column(db.Boolean, default=True)
@@ -62,59 +53,26 @@ class User(UserMixin, db.Model):
         while self.xp >= self.level * 100:
             self.xp -= self.level * 100
             self.level += 1
-            self.coins += 50  # Награда за уровень
+            self.coins += 50
         return self.level
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'full_name': self.full_name,
-            'avatar_color': self.avatar_color,
-            'level': self.level,
-            'xp': self.xp,
-            'is_online': (datetime.utcnow() - self.last_seen).seconds < 300
-        }
 
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    
-    # Статистика
     likes_count = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     shares_count = db.Column(db.Integer, default=0)
     views_count = db.Column(db.Integer, default=0)
-    
-    # Медиа
-    media_type = db.Column(db.String(20))  # image/video/poll/event
+    media_type = db.Column(db.String(20))
     media_url = db.Column(db.String(500))
-    poll_data = db.Column(db.Text)  # JSON для опросов
-    
-    # Приватность
+    poll_data = db.Column(db.Text)
     privacy = db.Column(db.String(20), default='public')
-    
-    # Местоположение
     location = db.Column(db.String(200))
-    
-    # Время
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Связи
     author = db.relationship('User', backref='user_posts')
-    comments = db.relationship('Comment', backref='post', lazy=True, cascade='all, delete-orphan')
-    
-    def add_like(self):
-        self.likes_count += 1
-        self.author.likes_received += 1
-        self.author.add_xp(5)
-    
-    def remove_like(self):
-        self.likes_count = max(0, self.likes_count - 1)
-        self.author.likes_received = max(0, self.author.likes_received - 1)
 
 class Comment(db.Model):
     __tablename__ = 'comments'
@@ -124,7 +82,6 @@ class Comment(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     likes_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     author = db.relationship('User', backref='user_comments')
 
 class Friendship(db.Model):
@@ -132,9 +89,8 @@ class Friendship(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    status = db.Column(db.String(20), default='pending')  # pending/accepted/rejected/blocked
+    status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     user = db.relationship('User', foreign_keys=[user_id], backref='sent_friendships')
     friend = db.relationship('User', foreign_keys=[friend_id], backref='received_friendships')
 
@@ -146,7 +102,6 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
 
@@ -154,12 +109,11 @@ class Notification(db.Model):
     __tablename__ = 'notifications'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    type = db.Column(db.String(50))  # like/comment/friend_request/message/mention/level_up
+    type = db.Column(db.String(50))
     content = db.Column(db.Text)
     reference_id = db.Column(db.Integer)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     user = db.relationship('User', backref='user_notifications')
 
 class Like(db.Model):
@@ -168,7 +122,6 @@ class Like(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
     user = db.relationship('User', backref='user_likes')
     post = db.relationship('Post', backref='post_likes')
 
@@ -176,448 +129,315 @@ class Like(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
-
-def create_notification(user_id, type, content, reference_id=None):
-    notification = Notification(
-        user_id=user_id,
-        type=type,
-        content=content,
-        reference_id=reference_id
-    )
-    db.session.add(notification)
-    db.session.commit()
-
-def get_unread_notifications_count(user_id):
-    return Notification.query.filter_by(user_id=user_id, is_read=False).count()
-
-def get_online_friends(user_id):
-    # В реальном приложении здесь была бы проверка активности
-    friends = User.query.filter(User.id != user_id).limit(5).all()
-    return [friend.to_dict() for friend in friends]
-
-def get_trending_hashtags():
-    return [
-        {'tag': 'NettaLaunch', 'count': 1245},
-        {'tag': 'ФиолетоваяВселенная', 'count': 892},
-        {'tag': 'КосмическийДизайн', 'count': 567},
-        {'tag': 'НоваяЭра', 'count': 432},
-        {'tag': 'СоцсетьБудущего', 'count': 321}
-    ]
-
-def get_suggested_users(user_id):
-    users = User.query.filter(User.id != user_id).order_by(db.func.random()).limit(4).all()
-    return [user.to_dict() for user in users]
-
-# ============ HTML ШАБЛОНЫ ============
-
-BASE_CSS = '''
-:root {
-    --purple-neon: #bf00ff;
-    --purple-deep: #7c3aed;
-    --purple-light: #a855f7;
-    --purple-dark: #5b21b6;
-    --purple-gradient: linear-gradient(135deg, #7c3aed 0%, #bf00ff 100%);
-    --space-bg: #0a0a1a;
-    --card-bg: rgba(20, 15, 40, 0.9);
-    --sidebar-bg: rgba(10, 5, 25, 0.95);
-    --text-glow: 0 0 20px var(--purple-neon);
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-    font-family: 'Orbitron', 'Segoe UI', sans-serif;
-    background: var(--space-bg);
-    color: white;
-    min-height: 100vh;
-}
-
-.logo-neon {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.logo-icon {
-    width: 45px;
-    height: 45px;
-    background: var(--purple-gradient);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    font-weight: 900;
-    color: white;
-    animation: neon-pulse 2s infinite alternate;
-}
-
-@keyframes neon-pulse {
-    from { box-shadow: 0 0 20px var(--purple-neon); }
-    to { box-shadow: 0 0 40px var(--purple-neon); }
-}
-
-.logo-text {
-    font-size: 1.8rem;
-    font-weight: 900;
-    background: linear-gradient(45deg, #a855f7, #ffffff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.btn-neon {
-    padding: 0.8rem 2rem;
-    background: var(--purple-gradient);
-    border: none;
-    border-radius: 15px;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.btn-neon:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(191, 0, 255, 0.3);
-}
-
-.input-neon {
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid rgba(124, 58, 237, 0.3);
-    border-radius: 15px;
-    color: white;
-    font-size: 1rem;
-    transition: 0.3s;
-}
-
-.input-neon:focus {
-    outline: none;
-    border-color: var(--purple-neon);
-    box-shadow: 0 0 20px rgba(191, 0, 255, 0.2);
-}
-
-.card {
-    background: var(--card-bg);
-    border: 2px solid rgba(124, 58, 237, 0.3);
-    border-radius: 20px;
-    padding: 1.5rem;
-    backdrop-filter: blur(10px);
-    margin-bottom: 1.5rem;
-}
-
-.header {
-    background: var(--sidebar-bg);
-    backdrop-filter: blur(20px);
-    border-bottom: 2px solid var(--purple-deep);
-    padding: 1rem 0;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-}
-
-.nav-icon {
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(124, 58, 237, 0.1);
-    border: 2px solid rgba(124, 58, 237, 0.3);
-    border-radius: 50%;
-    color: #a855f7;
-    text-decoration: none;
-    transition: 0.3s;
-}
-
-.nav-icon:hover {
-    background: rgba(124, 58, 237, 0.2);
-    border-color: var(--purple-neon);
-    transform: translateY(-3px);
-    box-shadow: 0 5px 20px rgba(191, 0, 255, 0.3);
-}
-
-.badge {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background: var(--purple-gradient);
-    color: white;
-    font-size: 0.7rem;
-    font-weight: bold;
-    min-width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-'''
-
-LOGIN_HTML = f'''
-<!DOCTYPE html>
+LOGIN_HTML = '''<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌌 Netta | Вход в метавселенную</title>
-    <style>{BASE_CSS}
-        body {{
+    <title>Netta | Вход</title>
+    <style>
+        :root {
+            --purple-neon: #bf00ff;
+            --purple-deep: #7c3aed;
+            --purple-light: #a855f7;
+            --purple-dark: #5b21b6;
+            --space-bg: #0a0a1a;
+            --card-bg: rgba(20, 15, 40, 0.9);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--space-bg);
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             padding: 20px;
-            background-image: 
-                radial-gradient(circle at 20% 80%, rgba(124, 58, 237, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
-        }}
-        
-        .auth-container {{
+        }
+        .auth-card {
+            background: var(--card-bg);
+            border: 2px solid #7c3aed;
+            border-radius: 20px;
+            padding: 3rem;
             width: 100%;
             max-width: 500px;
-        }}
-        
-        .auth-card {{
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid transparent;
-            border-radius: 30px;
-            padding: 3rem;
-            border-image: var(--purple-gradient) 1;
-            animation: matrix-border 3s infinite linear;
-        }}
-        
-        @keyframes matrix-border {{
-            0% {{ border-image-source: linear-gradient(0deg, #7c3aed, #bf00ff); }}
-            100% {{ border-image-source: linear-gradient(360deg, #7c3aed, #bf00ff); }}
-        }}
-        
-        .auth-title {{
-            text-align: center;
-            margin: 2rem 0;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 2rem;
-            background: var(--purple-gradient);
+            font-weight: 800;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed, #bf00ff);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: white;
+        }
+        .auth-title {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            background: linear-gradient(45deg, #7c3aed, #a855f7);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }}
-        
-        .form-group {{
+        }
+        .form-group {
             margin-bottom: 1.5rem;
-        }}
-        
-        .auth-links {{
+        }
+        .form-control {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(124, 58, 237, 0.3);
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .auth-switch {
             text-align: center;
             margin-top: 2rem;
-        }}
-        
-        .auth-link {{
+            color: #d1d5db;
+        }
+        .auth-link {
             color: #a855f7;
             text-decoration: none;
-            margin: 0 1rem;
-        }}
-        
-        .auth-link:hover {{
-            text-decoration: underline;
-        }}
-        
-        .flash-message {{
+        }
+        .flash-message {
             padding: 1rem;
             margin-bottom: 1rem;
             border-radius: 10px;
             text-align: center;
-        }}
-        
-        .flash-success {{
+        }
+        .flash-success {
             background: rgba(16, 185, 129, 0.2);
             border: 1px solid #10b981;
-        }}
-        
-        .flash-error {{
+        }
+        .flash-error {
             background: rgba(239, 68, 68, 0.2);
             border: 1px solid #ef4444;
-        }}
+        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="auth-container">
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div class="logo-neon" style="justify-content: center;">
-                <div class="logo-icon">N</div>
-                <div class="logo-text">etta</div>
-            </div>
+    <div class="auth-card">
+        <div class="logo">
+            <div class="logo-icon">N</div>
+            <span>Netta</span>
         </div>
         
-        <div class="auth-card">
-            <h1 class="auth-title">ВОЙТИ В МЕТАВСЕЛЕННУЮ</h1>
-            
-            {{% with messages = get_flashed_messages(with_categories=true) %}}
-                {{% if messages %}}
-                    {{% for category, message in messages %}}
-                        <div class="flash-message flash-{{{{ category }}}}">
-                            {{{{ message }}}}
-                        </div>
-                    {{% endfor %}}
-                {{% endif %}}
-            {{% endwith %}}
-            
-            <form method="POST" action="/login">
-                <div class="form-group">
-                    <input type="text" name="username" class="input-neon" required 
-                           placeholder="👤 Имя пользователя или Email" style="width: 100%;">
-                </div>
-                
-                <div class="form-group">
-                    <input type="password" name="password" class="input-neon" required 
-                           placeholder="🔒 Пароль" style="width: 100%;">
-                </div>
-                
-                <button type="submit" class="btn-neon" style="width: 100%;">
-                    🚀 ПРОДОЛЖИТЬ ПУТЕШЕСТВИЕ
-                </button>
-            </form>
-            
-            <div class="auth-links">
-                <a href="/register" class="auth-link">✨ СОЗДАТЬ АККАУНТ</a>
-                <a href="#" class="auth-link">🌌 ДЕМО-РЕЖИМ</a>
+        <h1 class="auth-title">ВОЙТИ В NETTA</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <input type="text" name="username" class="form-control" required placeholder="👤 Имя пользователя или Email">
             </div>
+            
+            <div class="form-group">
+                <input type="password" name="password" class="form-control" required placeholder="🔒 Пароль">
+            </div>
+            
+            <button type="submit" class="btn-primary">🚀 ВОЙТИ</button>
+        </form>
+        
+        <div class="auth-switch">
+            Нет аккаунта? <a href="/register" class="auth-link">Создать</a>
         </div>
     </div>
 </body>
-</html>
-'''
+</html>'''
 
-REGISTER_HTML = f'''
-<!DOCTYPE html>
+REGISTER_HTML = '''<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌌 Netta | Стать частью вселенной</title>
-    <style>{BASE_CSS}
-        body {{
+    <title>Netta | Регистрация</title>
+    <style>
+        :root {
+            --purple-neon: #bf00ff;
+            --purple-deep: #7c3aed;
+            --purple-light: #a855f7;
+            --purple-dark: #5b21b6;
+            --space-bg: #0a0a1a;
+            --card-bg: rgba(20, 15, 40, 0.9);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--space-bg);
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             padding: 20px;
-            background-image: 
-                radial-gradient(circle at 20% 80%, rgba(124, 58, 237, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
-        }}
-        
-        .auth-container {{
-            width: 100%;
-            max-width: 600px;
-        }}
-        
-        .auth-card {{
+        }
+        .auth-card {
             background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid transparent;
-            border-radius: 30px;
+            border: 2px solid #7c3aed;
+            border-radius: 20px;
             padding: 3rem;
-            border-image: var(--purple-gradient) 1;
-            animation: matrix-border 3s infinite linear;
-        }}
-        
-        .form-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }}
-        
-        @media (max-width: 768px) {{
-            .form-grid {{
-                grid-template-columns: 1fr;
-            }}
-        }}
-        
-        .terms {{
+            width: 100%;
+            max-width: 500px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed, #bf00ff);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: white;
+        }
+        .auth-title {
             text-align: center;
-            margin: 1.5rem 0;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.9rem;
-        }}
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            background: linear-gradient(45deg, #7c3aed, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(124, 58, 237, 0.3);
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .auth-switch {
+            text-align: center;
+            margin-top: 2rem;
+            color: #d1d5db;
+        }
+        .auth-link {
+            color: #a855f7;
+            text-decoration: none;
+        }
+        .flash-message {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .flash-success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+        }
+        .flash-error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="auth-container">
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div class="logo-neon" style="justify-content: center;">
-                <div class="logo-icon">N</div>
-                <div class="logo-text">etta</div>
-            </div>
+    <div class="auth-card">
+        <div class="logo">
+            <div class="logo-icon">N</div>
+            <span>Netta</span>
         </div>
         
-        <div class="auth-card">
-            <h1 class="auth-title" style="text-align: center; margin: 2rem 0; font-size: 2rem; background: var(--purple-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                СТАТЬ ЧАСТЬЮ ВСЕЛЕННОЙ
-            </h1>
-            
-            {{% with messages = get_flashed_messages(with_categories=true) %}}
-                {{% if messages %}}
-                    {{% for category, message in messages %}}
-                        <div class="flash-message flash-{{{{ category }}}}" style="padding: 1rem; margin-bottom: 1rem; border-radius: 10px; text-align: center;">
-                            {{{{ message }}}}
-                        </div>
-                    {{% endfor %}}
-                {{% endif %}}
-            {{% endwith %}}
-            
-            <form method="POST" action="/register">
-                <div class="form-grid">
-                    <div>
-                        <input type="text" name="username" class="input-neon" required 
-                               placeholder="👤 Имя пользователя" style="width: 100%;">
+        <h1 class="auth-title">СОЗДАТЬ АККАУНТ</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">
+                        {{ message }}
                     </div>
-                    
-                    <div>
-                        <input type="email" name="email" class="input-neon" required 
-                               placeholder="📧 Email адрес" style="width: 100%;">
-                    </div>
-                    
-                    <div>
-                        <input type="password" name="password" class="input-neon" required 
-                               placeholder="🔒 Пароль" style="width: 100%;">
-                    </div>
-                    
-                    <div>
-                        <input type="password" name="confirm_password" class="input-neon" required 
-                               placeholder="🔁 Подтвердите пароль" style="width: 100%;">
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 1.5rem;">
-                    <input type="text" name="full_name" class="input-neon" 
-                           placeholder="🌟 Ваше имя (необязательно)" style="width: 100%;">
-                </div>
-                
-                <div class="terms">
-                    Нажимая кнопку, вы соглашаетесь с правилами нашей вселенной
-                </div>
-                
-                <button type="submit" class="btn-neon" style="width: 100%;">
-                    🪐 СОЗДАТЬ ПРОСТРАНСТВО
-                </button>
-            </form>
-            
-            <div style="text-align: center; margin-top: 2rem;">
-                <a href="/login" class="auth-link" style="color: #a855f7; text-decoration: none;">
-                    ← ВЕРНУТЬСЯ К ВХОДУ
-                </a>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="/register">
+            <div class="form-group">
+                <input type="text" name="username" class="form-control" required placeholder="👤 Имя пользователя">
             </div>
+            
+            <div class="form-group">
+                <input type="email" name="email" class="form-control" required placeholder="📧 Email адрес">
+            </div>
+            
+            <div class="form-group">
+                <input type="password" name="password" class="form-control" required placeholder="🔒 Пароль">
+            </div>
+            
+            <div class="form-group">
+                <input type="password" name="confirm_password" class="form-control" required placeholder="🔁 Подтвердите пароль">
+            </div>
+            
+            <div class="form-group">
+                <input type="text" name="full_name" class="form-control" placeholder="🌟 Ваше имя (необязательно)">
+            </div>
+            
+            <button type="submit" class="btn-primary">🚀 СОЗДАТЬ АККАУНТ</button>
+        </form>
+        
+        <div class="auth-switch">
+            Уже есть аккаунт? <a href="/login" class="auth-link">Войти</a>
         </div>
     </div>
 </body>
-</html>
-'''
-
-# ============ МАРШРУТЫ СО ВСЕМИ ФУНКЦИЯМИ ============
+</html>'''
 
 @app.route('/')
 def index():
@@ -625,490 +445,192 @@ def index():
         current_user.last_seen = datetime.utcnow()
         db.session.commit()
         
-        # Получаем данные для главной страницы
-        posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
+        posts = Post.query.order_by(Post.created_at.desc()).limit(10).all()
         liked_posts = [like.post_id for like in current_user.user_likes]
-        unread_notifications = get_unread_notifications_count(current_user.id)
-        online_friends = get_online_friends(current_user.id)
-        trending = get_trending_hashtags()
-        suggested = get_suggested_users(current_user.id)
         
-        # Генерация HTML главной страницы
         return render_template_string('''
         <!DOCTYPE html>
         <html lang="ru">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>🌌 Netta | Космическая лента</title>
-            <style>''' + BASE_CSS + '''
-                .main-layout {
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    display: grid;
-                    grid-template-columns: 280px 1fr 350px;
-                    gap: 2rem;
-                    padding: 2rem;
-                    min-height: 100vh;
+            <title>Netta | Главная</title>
+            <style>
+                :root {
+                    --purple-neon: #bf00ff;
+                    --purple-deep: #7c3aed;
+                    --purple-light: #a855f7;
+                    --purple-dark: #5b21b6;
+                    --space-bg: #0a0a1a;
+                    --card-bg: rgba(20, 15, 40, 0.9);
                 }
-                
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Segoe UI', sans-serif;
+                    background: var(--space-bg);
+                    color: white;
+                }
+                .header {
+                    background: rgba(10, 5, 25, 0.95);
+                    border-bottom: 2px solid #7c3aed;
+                    padding: 1rem 0;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 0 1rem;
+                }
+                .navbar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .logo {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-size: 1.5rem;
+                    font-weight: 800;
+                    color: white;
+                    text-decoration: none;
+                }
+                .logo-icon {
+                    width: 40px;
+                    height: 40px;
+                    background: linear-gradient(135deg, #7c3aed, #bf00ff);
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.5rem;
+                    font-weight: 900;
+                    color: white;
+                }
+                .main-layout {
+                    display: grid;
+                    grid-template-columns: 250px 1fr 300px;
+                    gap: 2rem;
+                    padding: 2rem 0;
+                }
+                .card {
+                    background: var(--card-bg);
+                    border: 2px solid rgba(124, 58, 237, 0.3);
+                    border-radius: 15px;
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                }
                 .post-editor {
                     width: 100%;
-                    min-height: 120px;
+                    min-height: 100px;
                     padding: 1rem;
                     background: rgba(255, 255, 255, 0.05);
                     border: 2px solid rgba(124, 58, 237, 0.3);
-                    border-radius: 15px;
+                    border-radius: 10px;
                     color: white;
-                    font-size: 1rem;
-                    resize: vertical;
                     margin-bottom: 1rem;
                 }
-                
-                .post {
-                    transition: 0.3s;
+                .btn {
+                    padding: 0.8rem 2rem;
+                    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+                    border: none;
+                    border-radius: 10px;
+                    color: white;
+                    font-weight: 600;
+                    cursor: pointer;
                 }
-                
-                .post:hover {
-                    border-color: var(--purple-neon);
-                    box-shadow: 0 10px 30px rgba(191, 0, 255, 0.2);
-                    transform: translateY(-5px);
-                }
-                
                 .user-avatar {
                     width: 50px;
                     height: 50px;
                     border-radius: 50%;
+                    background: ''' + current_user.avatar_color + ''';
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     font-weight: bold;
-                    border: 2px solid var(--purple-light);
-                }
-                
-                .level-badge {
-                    background: var(--purple-gradient);
-                    color: white;
-                    padding: 0.2rem 0.6rem;
-                    border-radius: 10px;
-                    font-size: 0.8rem;
-                    font-weight: bold;
-                }
-                
-                .xp-bar {
-                    height: 4px;
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 2px;
-                    margin-top: 0.5rem;
-                    overflow: hidden;
-                }
-                
-                .xp-fill {
-                    height: 100%;
-                    background: var(--purple-gradient);
-                    border-radius: 2px;
-                }
-                
-                .trending-item {
-                    padding: 0.8rem;
-                    background: rgba(255, 255, 255, 0.03);
-                    border-radius: 10px;
-                    cursor: pointer;
-                    transition: 0.3s;
-                }
-                
-                .trending-item:hover {
-                    background: rgba(124, 58, 237, 0.1);
-                }
-                
-                @media (max-width: 1200px) {
-                    .main-layout {
-                        grid-template-columns: 250px 1fr;
-                    }
-                }
-                
-                @media (max-width: 992px) {
-                    .main-layout {
-                        grid-template-columns: 1fr;
-                        padding: 1rem;
-                    }
+                    font-size: 1.2rem;
                 }
             </style>
-            <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         </head>
         <body>
-            <!-- ШАПКА -->
             <header class="header">
-                <div style="max-width: 1400px; margin: 0 auto; padding: 0 2rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <!-- ЛОГО -->
-                        <a href="/" class="logo-neon" style="text-decoration: none;">
+                <div class="container">
+                    <nav class="navbar">
+                        <a href="/" class="logo">
                             <div class="logo-icon">N</div>
-                            <div class="logo-text">etta</div>
+                            <span>Netta</span>
                         </a>
-                        
-                        <!-- ПОИСК -->
-                        <div style="flex: 1; max-width: 500px; margin: 0 2rem; position: relative;">
-                            <input type="text" class="input-neon" placeholder="🔍 Поиск во вселенной..." style="width: 100%; padding-left: 3rem;">
-                            <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #a855f7;"></i>
+                        <div>
+                            <a href="/logout" style="color: #a855f7; text-decoration: none;">Выйти</a>
                         </div>
-                        
-                        <!-- ИКОНКИ -->
-                        <div style="display: flex; gap: 1rem; align-items: center;">
-                            <a href="#" class="nav-icon" title="Главная">
-                                <i class="fas fa-home"></i>
-                            </a>
-                            
-                            <a href="#" class="nav-icon" title="Уведомления" style="position: relative;">
-                                <i class="fas fa-bell"></i>
-                                ''' + (f'<span class="badge">{unread_notifications}</span>' if unread_notifications > 0 else '') + '''
-                            </a>
-                            
-                            <a href="#" class="nav-icon" title="Сообщения" style="position: relative;">
-                                <i class="fas fa-comments"></i>
-                                <span class="badge">3</span>
-                            </a>
-                            
-                            <a href="#" class="nav-icon" title="Друзья">
-                                <i class="fas fa-user-friends"></i>
-                            </a>
-                            
-                            <a href="/logout" class="nav-icon" title="Выйти">
-                                <i class="fas fa-sign-out-alt"></i>
-                            </a>
-                        </div>
-                    </div>
+                    </nav>
                 </div>
             </header>
             
-            <!-- ОСНОВНОЙ КОНТЕНТ -->
-            <main class="main-layout">
-                <!-- ЛЕВЫЙ САЙДБАР -->
-                <aside>
-                    <!-- ПРОФИЛЬ -->
-                    <div class="card">
-                        <div style="text-align: center;">
-                            <div class="user-avatar" style="margin: 0 auto 1rem; background: ''' + current_user.avatar_color + ''';">
-                                ''' + current_user.username[0].upper() + '''
-                            </div>
-                            <h3 style="margin-bottom: 0.5rem;">''' + (current_user.full_name or current_user.username) + '''</h3>
-                            <p style="color: #a855f7; margin-bottom: 0.5rem;">@''' + current_user.username + '''</p>
-                            
-                            <!-- УРОВЕНЬ И ОПЫТ -->
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <span class="level-badge">Уровень ''' + str(current_user.level) + '''</span>
-                                <span style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
-                                    <i class="fas fa-coins" style="color: #f59e0b;"></i> ''' + str(current_user.coins) + '''
-                                </span>
-                            </div>
-                            
-                            <div class="xp-bar">
-                                <div class="xp-fill" style="width: ''' + str((current_user.xp % (current_user.level * 100)) / (current_user.level * 100) * 100) + '''%;"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- СТАТИСТИКА -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+            <main class="container">
+                <div class="main-layout">
+                    <aside>
+                        <div class="card">
                             <div style="text-align: center;">
-                                <div style="font-size: 1.2rem; font-weight: bold;">''' + str(current_user.posts_count) + '''</div>
-                                <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">Постов</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.2rem; font-weight: bold;">''' + str(current_user.friends_count) + '''</div>
-                                <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">Друзей</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.2rem; font-weight: bold;">''' + str(current_user.likes_received) + '''</div>
-                                <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">Лайков</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.2rem; font-weight: bold;">''' + str(current_user.comments_count) + '''</div>
-                                <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">Комментариев</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- НАВИГАЦИЯ -->
-                    <div class="card">
-                        <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                            <i class="fas fa-rocket"></i> Навигация
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                               onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                               onmouseout="this.style.background='transparent';">
-                                <i class="fas fa-compass"></i> Исследовать
-                            </a>
-                            <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                               onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                               onmouseout="this.style.background='transparent';">
-                                <i class="fas fa-users"></i> Сообщества
-                            </a>
-                            <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                               onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                               onmouseout="this.style.background='transparent';">
-                                <i class="fas fa-gamepad"></i> Игры
-                            </a>
-                            <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                               onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                               onmouseout="this.style.background='transparent';">
-                                <i class="fas fa-store"></i> Магазин
-                            </a>
-                            <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                               onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                               onmouseout="this.style.background='transparent';">
-                                <i class="fas fa-cog"></i> Настройки
-                            </a>
-                        </div>
-                    </div>
-                </aside>
-                
-                <!-- ЦЕНТРАЛЬНАЯ ЛЕНТА -->
-                <section>
-                    <!-- СОЗДАНИЕ ПОСТА -->
-                    <div class="card">
-                        <form method="POST" action="/create_post">
-                            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                                <div class="user-avatar" style="background: ''' + current_user.avatar_color + '''; margin-right: 1rem;">
+                                <div class="user-avatar" style="margin: 0 auto 1rem;">
                                     ''' + current_user.username[0].upper() + '''
                                 </div>
-                                <div>
-                                    <div style="font-weight: bold;">''' + (current_user.full_name or current_user.username) + '''</div>
-                                    <select name="privacy" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(124, 58, 237, 0.3); color: white; padding: 0.3rem; border-radius: 5px; font-size: 0.8rem;">
-                                        <option value="public">🌍 Публичный</option>
-                                        <option value="friends">👥 Только друзья</option>
-                                        <option value="private">🔒 Только я</option>
-                                    </select>
-                                </div>
+                                <h3>''' + (current_user.full_name or current_user.username) + '''</h3>
+                                <p style="color: #a855f7;">@''' + current_user.username + '''</p>
+                                <p>Уровень: ''' + str(current_user.level) + '''</p>
+                                <p>Монеты: ''' + str(current_user.coins) + '''</p>
                             </div>
-                            
-                            <textarea name="content" class="post-editor" placeholder="🌌 Что происходит в вашей вселенной, ''' + current_user.username + '''?"></textarea>
-                            
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div style="display: flex; gap: 1rem;">
-                                    <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;" 
-                                            title="Добавить фото">
-                                        <i class="fas fa-image"></i>
-                                    </button>
-                                    <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;"
-                                            title="Добавить видео">
-                                        <i class="fas fa-video"></i>
-                                    </button>
-                                    <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;"
-                                            title="Добавить эмоцию">
-                                        <i class="fas fa-smile"></i>
-                                    </button>
-                                    <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;"
-                                            title="Создать опрос">
-                                        <i class="fas fa-poll"></i>
-                                    </button>
-                                </div>
-                                <button type="submit" class="btn-neon">
-                                    <i class="fas fa-paper-plane"></i> Опубликовать
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                        </div>
+                    </aside>
                     
-                    <!-- ПОСТЫ -->
-                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <section>
+                        <div class="card">
+                            <form method="POST" action="/create_post">
+                                <textarea name="content" class="post-editor" placeholder="Что нового?"></textarea>
+                                <button type="submit" class="btn">Опубликовать</button>
+                            </form>
+                        </div>
+                        
                         ''' + ''.join([f'''
-                        <div class="card post">
+                        <div class="card">
                             <div style="display: flex; align-items: center; margin-bottom: 1rem;">
                                 <div class="user-avatar" style="background: {post.author.avatar_color}; margin-right: 1rem;">
                                     {post.author.username[0].upper()}
                                 </div>
                                 <div>
-                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                        <span style="font-weight: bold;">{post.author.full_name or post.author.username}</span>
-                                        <span class="level-badge" style="font-size: 0.7rem;">Уровень {post.author.level}</span>
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
+                                    <div style="font-weight: bold;">{post.author.full_name or post.author.username}</div>
+                                    <div style="color: #9ca3af; font-size: 0.9rem;">
                                         {post.created_at.strftime('%d %b в %H:%M')}
-                                        <span style="margin-left: 1rem;">
-                                            {{
-                                                '🌍' if post.privacy == 'public' 
-                                                else '👥' if post.privacy == 'friends' 
-                                                else '🔒'
-                                            }}
-                                        </span>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div style="margin-bottom: 1rem; line-height: 1.6;">
+                            <div style="margin-bottom: 1rem;">
                                 {post.content}
                             </div>
-                            
-                            <div style="display: flex; gap: 2rem; color: rgba(255, 255, 255, 0.7);">
+                            <div>
                                 <form method="POST" action="/like/{post.id}" style="display: inline;">
-                                    <button type="submit" style="background: none; border: none; color: {'var(--purple-neon)' if post.id in liked_posts else 'inherit'}; 
-                                            cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                            onmouseover="this.style.color='var(--purple-neon)';">
-                                        <i class="fas fa-heart"></i> {post.likes_count}
+                                    <button type="submit" style="background: none; border: none; color: {'#bf00ff' if post.id in liked_posts else 'white'}; cursor: pointer;">
+                                        ❤️ {post.likes_count}
                                     </button>
                                 </form>
-                                <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                                        display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                        onmouseover="this.style.color='var(--purple-neon)';">
-                                    <i class="fas fa-comment"></i> {post.comments_count}
-                                </button>
-                                <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                                        display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                        onmouseover="this.style.color='var(--purple-neon)';">
-                                    <i class="fas fa-share"></i> {post.shares_count}
-                                </button>
-                                <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                                        display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                        onmouseover="this.style.color='var(--purple-neon)';">
-                                    <i class="fas fa-bookmark"></i> Сохранить
-                                </button>
+                                <span style="margin-left: 1rem;">💬 {post.comments_count}</span>
                             </div>
                         </div>
                         ''' for post in posts]) + '''
-                    </div>
-                </section>
-                
-                <!-- ПРАВАЯ КОЛОНКА -->
-                <aside>
-                    <!-- ОНЛАЙН ДРУЗЬЯ -->
-                    <div class="card">
-                        <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                            <i class="fas fa-satellite"></i> В сети сейчас
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                            ''' + ''.join([f'''
-                            <div style="display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem; border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                                 onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                                <div class="user-avatar" style="background: {friend['avatar_color']}; width: 40px; height: 40px; border: 2px solid #10b981;">
-                                    {friend['username'][0].upper()}
-                                </div>
-                                <div>
-                                    <div style="font-weight: bold;">{friend['username']}</div>
-                                    <div style="font-size: 0.8rem; color: #10b981;">
-                                        <i class="fas fa-circle" style="font-size: 0.6rem;"></i> Онлайн
-                                    </div>
-                                </div>
-                            </div>
-                            ''' for friend in online_friends]) + '''
-                        </div>
-                    </div>
+                    </section>
                     
-                    <!-- ТРЕНДЫ -->
-                    <div class="card">
-                        <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                            <i class="fas fa-fire"></i> Тренды вселенной
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                            ''' + ''.join([f'''
-                            <div class="trending-item">
-                                <div style="font-weight: bold; color: var(--purple-light);">#{trend['tag']}</div>
-                                <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">{trend['count']} постов</div>
-                            </div>
-                            ''' for trend in trending]) + '''
+                    <aside>
+                        <div class="card">
+                            <h3>Онлайн сейчас</h3>
+                            <p>Друзья в сети скоро здесь</p>
                         </div>
-                    </div>
-                    
-                    <!-- РЕКОМЕНДАЦИИ -->
-                    <div class="card">
-                        <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                            <i class="fas fa-user-plus"></i> Рекомендуем
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                            ''' + ''.join([f'''
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem; border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                                 onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                                <div style="display: flex; align-items: center; gap: 0.8rem;">
-                                    <div class="user-avatar" style="background: {user['avatar_color']}; width: 40px; height: 40px;">
-                                        {user['username'][0].upper()}
-                                    </div>
-                                    <div>
-                                        <div style="font-weight: bold;">{user['username']}</div>
-                                        <div style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">
-                                            Уровень {user['level']}
-                                        </div>
-                                    </div>
-                                </div>
-                                <button class="btn-neon" style="padding: 0.3rem 1rem; font-size: 0.8rem;">
-                                    Подписаться
-                                </button>
-                            </div>
-                            ''' for user in suggested]) + '''
+                        <div class="card">
+                            <h3>Тренды</h3>
+                            <p>#NettaLaunch</p>
+                            <p>#ФиолетоваяВселенная</p>
                         </div>
-                    </div>
-                </aside>
-            </main>
-            
-            <!-- ФУТЕР -->
-            <footer style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(124, 58, 237, 0.2);">
-                <div style="max-width: 1400px; margin: 0 auto;">
-                    <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                        <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">О Netta</a>
-                        <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">Помощь</a>
-                        <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">Конфиденциальность</a>
-                        <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">Условия</a>
-                        <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">Разработчикам</a>
-                    </div>
-                    <div style="margin-bottom: 1rem;">
-                        <span style="color: var(--purple-light); font-weight: bold;">Netta</span> 
-                        — Социальная сеть нового поколения 🌌
-                    </div>
-                    <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.4);">
-                        © 2026 Netta Universe. Все права защищены.
-                    </div>
+                    </aside>
                 </div>
-            </footer>
-            
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Анимация постов
-                    const observer = new IntersectionObserver((entries) => {
-                        entries.forEach(entry => {
-                            if (entry.isIntersecting) {
-                                entry.target.style.opacity = '1';
-                                entry.target.style.transform = 'translateY(0)';
-                            }
-                        });
-                    });
-                    
-                    document.querySelectorAll('.post').forEach(post => {
-                        post.style.opacity = '0';
-                        post.style.transform = 'translateY(20px)';
-                        post.style.transition = 'opacity 0.5s, transform 0.5s';
-                        observer.observe(post);
-                    });
-                    
-                    // Анимация лайков
-                    document.querySelectorAll('form[action^="/like/"] button').forEach(button => {
-                        button.addEventListener('click', function(e) {
-                            setTimeout(() => {
-                                const heart = document.createElement('div');
-                                heart.innerHTML = '❤️';
-                                heart.style.position = 'fixed';
-                                heart.style.fontSize = '2rem';
-                                heart.style.color = '#bf00ff';
-                                heart.style.zIndex = '10000';
-                                heart.style.pointerEvents = 'none';
-                                
-                                const rect = button.getBoundingClientRect();
-                                heart.style.left = (rect.left + rect.width/2 - 16) + 'px';
-                                heart.style.top = (rect.top - 32) + 'px';
-                                
-                                document.body.appendChild(heart);
-                                
-                                heart.animate([
-                                    {{ transform: 'translateY(0) scale(1)', opacity: 1 }},
-                                    {{ transform: 'translateY(-100px) scale(1.5)', opacity: 0 }}
-                                ], {{
-                                    duration: 800,
-                                    easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
-                                }}).onfinish = () => heart.remove();
-                            }, 100);
-                        });
-                    });
-                });
-            </script>
+            </main>
         </body>
         </html>
         ''')
@@ -1130,10 +652,10 @@ def login():
             user.last_seen = datetime.utcnow()
             db.session.commit()
             login_user(user)
-            flash('Добро пожаловать в метавселенную Netta! 🌌', 'success')
+            flash('Добро пожаловать в Netta!', 'success')
             return redirect('/')
         else:
-            flash('Неверные данные. Попробуйте снова.', 'error')
+            flash('Неверный логин или пароль', 'error')
     
     return LOGIN_HTML
 
@@ -1149,27 +671,20 @@ def register():
         confirm_password = request.form['confirm_password']
         full_name = request.form.get('full_name', '')
         
-        # Валидация
         if password != confirm_password:
-            flash('Пароли не совпадают! 🔐', 'error')
+            flash('Пароли не совпадают', 'error')
             return REGISTER_HTML
         
         if User.query.filter_by(username=username).first():
-            flash('Это имя пользователя уже занято! 👤', 'error')
+            flash('Имя пользователя уже занято', 'error')
             return REGISTER_HTML
         
         if User.query.filter_by(email=email).first():
-            flash('Этот email уже используется! 📧', 'error')
+            flash('Email уже используется', 'error')
             return REGISTER_HTML
         
-        if len(password) < 6:
-            flash('Пароль должен быть минимум 6 символов! ⚠️', 'error')
-            return REGISTER_HTML
-        
-        # Цвета для аватара
         colors = ['#7c3aed', '#a855f7', '#bf00ff', '#5b21b6', '#8b5cf6']
         
-        # Создание пользователя
         user = User(
             username=username,
             email=email,
@@ -1182,7 +697,7 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        flash('Ваше пространство создано! Добро пожаловать в Netta! 🚀', 'success')
+        flash('Аккаунт создан! Войдите в систему', 'success')
         return redirect('/login')
     
     return REGISTER_HTML
@@ -1191,1824 +706,23 @@ def register():
 @login_required
 def logout():
     logout_user()
-    flash('Вы покинули вселенную Netta. Возвращайтесь скорее! 👋', 'success')
+    flash('Вы вышли из системы', 'success')
     return redirect('/login')
 
 @app.route('/create_post', methods=['POST'])
 @login_required
 def create_post():
     content = request.form.get('content', '')
-    privacy = request.form.get('privacy', 'public')
-    
     if content.strip():
         post = Post(
             content=content,
-            user_id=current_user.id,
-            privacy=privacy
+            user_id=current_user.id
         )
         current_user.posts_count += 1
         db.session.add(post)
         db.session.commit()
-        
-        flash('Ваш пост запущен в космос! 🌠', 'success')
+        flash('Пост опубликован!', 'success')
     
-    return redirect('/')
-
-@app.route('/like/<int:post_id>', methods=['POST'])
-@login_required
-def like_post(post_id):
-    post = Post.query.get(post_id)
-    if post and post.author.id != current_user.id:
-        # Проверяем, не лайкал ли уже
-        existing_like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
-        
-        if existing_like:
-            # Убираем лайк
-            db.session.delete(existing_like)
-            post.remove_like()
-        else:
-            # Ставим лайк
-            like = Like(user_id=current_user.id, post_id=post_id)
-            db.session.add(like)
-            post.add_like()
-            
-            # Создаем уведомление
-            create_notification(
-                user_id=post.author.id,
-                type='like',
-                content=f'{current_user.username} понравился ваш пост',
-                reference_id=post_id
-            )
-        
-        db.session.commit()
-    
-    return redirect('/')
-
-# API МАРШРУТЫ
-@app.route('/api/notifications')
-@login_required
-def api_notifications():
-    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).limit(10).all()
-    return jsonify([{
-        'id': n.id,
-        'type': n.type,
-        'content': n.content,
-        'is_read': n.is_read,
-        'created_at': n.created_at.isoformat()
-    } for n in notifications])
-
-@app.route('/api/stats')
-@login_required
-def api_stats():
-    return jsonify({
-        'level': current_user.level,
-        'xp': current_user.xp,
-        'coins': current_user.coins,
-        'posts': current_user.posts_count,
-        'friends': current_user.friends_count,
-        'likes_received': current_user.likes_received
-    })
-
-@app.route('/api/add_friend/<username>', methods=['POST'])
-@login_required
-def api_add_friend(username):
-    friend = User.query.filter_by(username=username).first()
-    if friend and friend.id != current_user.id:
-        friendship = Friendship.query.filter_by(user_id=current_user.id, friend_id=friend.id).first()
-        if not friendship:
-            friendship = Friendship(user_id=current_user.id, friend_id=friend.id)
-            db.session.add(friendship)
-            current_user.friends_count += 1
-            friend.friends_count += 1
-            db.session.commit()
-            
-            create_notification(
-                user_id=friend.id,
-                type='friend_request',
-                content=f'{current_user.username} отправил вам запрос в друзья',
-                reference_id=current_user.id
-            )
-            
-            return jsonify({'success': True})
-    return jsonify({'success': False})
-
-# Обработка 404
-@app.errorhandler(404)
-def not_found(error):
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>404 - Потерялся в космосе</title>
-        <style>
-            body {
-                background: #0a0a1a;
-                color: white;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-                text-align: center;
-                font-family: 'Orbitron', sans-serif;
-            }
-            .container {
-                max-width: 600px;
-                padding: 2rem;
-            }
-            h1 {
-                font-size: 8rem;
-                margin: 0;
-                background: linear-gradient(45deg, #7c3aed, #bf00ff);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                animation: neon-pulse 2s infinite alternate;
-            }
-            .btn {
-                display: inline-block;
-                margin-top: 2rem;
-                padding: 1rem 2rem;
-                background: linear-gradient(135deg, #7c3aed, #5b21b6);
-                color: white;
-                text-decoration: none;
-                border-radius: 15px;
-                font-weight: bold;
-                transition: 0.3s;
-            }
-            .btn:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 10px 30px rgba(191, 0, 255, 0.3);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>404</h1>
-            <h2>Вы потерялись в космосе</h2>
-            <p>Эта планета еще не открыта. Возвращайтесь на базу!</p>
-            <a href="/" class="btn">🚀 Вернуться на Землю</a>
-        </div>
-    </body>
-    </html>
-    ''', 404
-
-# Запуск приложения
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        
-        # Создаем тестовых пользователей если их нет
-        if not User.query.first():
-            test_users = [
-                {'username': 'admin', 'email': 'admin@netta.com', 'password': 'admin123', 'full_name': 'Админ Вселенной'},
-                {'username': 'cosmos', 'email': 'cosmos@netta.com', 'password': 'cosmos123', 'full_name': 'Космический Путешественник'},
-                {'username': 'nebula', 'email': 'nebula@netta.com', 'password': 'nebula123', 'full_name': 'Туманность Андромеды'},
-                {'username': 'stardust', 'email': 'stardust@netta.com', 'password': 'stardust123', 'full_name': 'Звездная Пыль'},
-                {'username': 'galaxy', 'email': 'galaxy@netta.com', 'password': 'galaxy123', 'full_name': 'Галактический Исследователь'}
-            ]
-            
-            colors = ['#7c3aed', '#a855f7', '#bf00ff', '#5b21b6', '#8b5cf6']
-            
-            for i, user_data in enumerate(test_users):
-                user = User(
-                    username=user_data['username'],
-                    email=user_data['email'],
-                    full_name=user_data['full_name'],
-                    avatar_color=colors[i % len(colors)],
-                    cover_color=colors[(i + 1) % len(colors)],
-                    xp=random.randint(100, 1000),
-                    level=random.randint(2, 10),
-                    coins=random.randint(100, 1000),
-                    is_verified=i == 0,  # Первый пользователь - верифицированный
-                    is_premium=i < 2  # Первые два - премиум
-                )
-                user.set_password(user_data['password'])
-                db.session.add(user)
-            
-            # Тестовые посты
-            post_contents = [
-                'Привет всем! Это новая социальная сеть Netta! 🌌 Кто уже успел исследовать?',
-                'Только что достиг 10 уровня! 🎉 Система прокачки просто огонь!',
-                'Купил новый скин для профиля в магазине за 500 монет 💜 Выглядит космически!',
-                'Объявляю конкурс на лучший космический пост! Приз - 1000 монет! 🚀',
-                'Создал сообщество "Исследователи Марса". Присоединяйтесь! 🪐',
-                'Фиолетовый - это не просто цвет, это состояние души! 🟣',
-                'Кто хочет вместе пройти новую космическую игру? Нужна команда из 4 человек! 🎮',
-                'Обновил аватарку с помощью нового генератора нейросетей. Как вам? 🤖',
-                'Сегодня получил 50 лайков за один пост! Спасибо, комьюнити! ❤️',
-                'Заметил баг в системе уведомлений. Разработчики, проверьте плиз! 🐛'
-            ]
-            
-            users = User.query.all()
-            for i, content in enumerate(post_contents):
-                post = Post(
-                    content=content,
-                    user_id=users[i % len(users)].id,
-                    likes_count=random.randint(5, 50),
-                    comments_count=random.randint(0, 20),
-                    shares_count=random.randint(0, 10),
-                    views_count=random.randint(50, 500),
-                    privacy=random.choice(['public', 'public', 'public', 'friends']),
-                    created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 48))
-                )
-                db.session.add(post)
-                
-                # Обновляем статистику пользователя
-                author = users[i % len(users)]
-                author.posts_count += 1
-                author.likes_received += post.likes_count
-                author.comments_count += post.comments_count
-            
-            # Тестовые дружеские связи
-            for i in range(min(5, len(users))):
-                for j in range(i + 1, min(5, len(users))):
-                    friendship = Friendship(
-                        user_id=users[i].id,
-                        friend_id=users[j].id,
-                        status='accepted'
-                    )
-                    db.session.add(friendship)
-                    users[i].friends_count += 1
-                    users[j].friends_count += 1
-            
-            db.session.commit()
-            print("✅ База данных создана с тестовыми данными!")
-            print("👤 Тестовые пользователи:")
-            for user in User.query.all():
-                print(f"   {user.username} / {user_data['password'] if 'password' in locals() else 'пароль из списка'}")
-    
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)            --purple-dark: #5b21b6;
-            --purple-gradient: linear-gradient(135deg, #7c3aed 0%, #bf00ff 100%);
-            --space-bg: #0a0a1a;
-            --card-bg: rgba(20, 15, 40, 0.9);
-            --text-glow: 0 0 20px var(--purple-neon);
-            --star-color: rgba(191, 0, 255, 0.3);
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Orbitron', 'Segoe UI', sans-serif;
-            background: var(--space-bg);
-            color: white;
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-        }
-        
-        /* КОСМИЧЕСКИЙ ФОН */
-        .stars {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-        }
-        
-        .star {
-            position: absolute;
-            background: var(--star-color);
-            border-radius: 50%;
-            animation: twinkle 5s infinite;
-        }
-        
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
-        
-        /* ГЛАВНЫЙ КОНТЕЙНЕР */
-        .main-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            position: relative;
-        }
-        
-        /* КАРТОЧКА АВТОРИЗАЦИИ */
-        .auth-matrix {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid transparent;
-            border-radius: 30px;
-            padding: 4rem;
-            width: 100%;
-            max-width: 500px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 
-                0 0 50px rgba(124, 58, 237, 0.3),
-                inset 0 0 30px rgba(191, 0, 255, 0.1);
-            animation: matrix-border 3s infinite linear;
-            border-image: var(--purple-gradient) 1;
-        }
-        
-        @keyframes matrix-border {
-            0% { border-image-source: linear-gradient(0deg, #7c3aed, #bf00ff); }
-            100% { border-image-source: linear-gradient(360deg, #7c3aed, #bf00ff); }
-        }
-        
-        /* ЛОГОТИП NETTA */
-        .logo-neon {
-            text-align: center;
-            margin-bottom: 3rem;
-            position: relative;
-        }
-        
-        .logo-neon .letter-n {
-            display: inline-block;
-            font-size: 5rem;
-            font-weight: 900;
-            background: var(--purple-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: var(--text-glow);
-            animation: neon-pulse 2s infinite alternate;
-        }
-        
-        @keyframes neon-pulse {
-            from { filter: drop-shadow(0 0 10px var(--purple-neon)); }
-            to { filter: drop-shadow(0 0 30px var(--purple-neon)); }
-        }
-        
-        .logo-text {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(45deg, #a855f7, #ffffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-left: 15px;
-            letter-spacing: 3px;
-        }
-        
-        /* ЗАГОЛОВОК */
-        .auth-title {
-            text-align: center;
-            font-size: 2.2rem;
-            margin-bottom: 2.5rem;
-            background: var(--purple-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            position: relative;
-        }
-        
-        .auth-title::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100px;
-            height: 3px;
-            background: var(--purple-gradient);
-            border-radius: 2px;
-        }
-        
-        /* ФОРМА */
-        .form-group {
-            margin-bottom: 2rem;
-            position: relative;
-        }
-        
-        .input-neon {
-            width: 100%;
-            padding: 1.2rem 1.5rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 15px;
-            color: white;
-            font-size: 1.1rem;
-            font-family: 'Segoe UI', sans-serif;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .input-neon:focus {
-            outline: none;
-            border-color: var(--purple-neon);
-            box-shadow: 0 0 25px rgba(191, 0, 255, 0.4);
-            background: rgba(255, 255, 255, 0.08);
-            transform: translateY(-2px);
-        }
-        
-        .input-neon::placeholder {
-            color: rgba(255, 255, 255, 0.4);
-        }
-        
-        /* КНОПКА */
-        .btn-neon {
-            width: 100%;
-            padding: 1.3rem;
-            background: var(--purple-gradient);
-            border: none;
-            border-radius: 15px;
-            color: white;
-            font-size: 1.2rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            z-index: 1;
-        }
-        
-        .btn-neon::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: 0.5s;
-            z-index: -1;
-        }
-        
-        .btn-neon:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 
-                0 10px 30px rgba(124, 58, 237, 0.4),
-                0 0 50px rgba(191, 0, 255, 0.3);
-        }
-        
-        .btn-neon:hover::before {
-            left: 100%;
-        }
-        
-        .btn-neon:active {
-            transform: translateY(-2px) scale(1);
-        }
-        
-        /* ССЫЛКИ */
-        .auth-links {
-            text-align: center;
-            margin-top: 2.5rem;
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-        }
-        
-        .auth-link {
-            color: #a855f7;
-            text-decoration: none;
-            font-weight: 500;
-            position: relative;
-            padding: 0.5rem 1rem;
-            transition: 0.3s;
-        }
-        
-        .auth-link::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: var(--purple-gradient);
-            transition: width 0.3s;
-        }
-        
-        .auth-link:hover {
-            color: var(--purple-neon);
-        }
-        
-        .auth-link:hover::after {
-            width: 100%;
-        }
-        
-        /* УВЕДОМЛЕНИЯ */
-        .flash-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-        
-        .flash-neon {
-            padding: 1.2rem 2rem;
-            margin-bottom: 1rem;
-            border-radius: 15px;
-            background: rgba(20, 15, 40, 0.95);
-            border: 2px solid;
-            backdrop-filter: blur(10px);
-            animation: slide-in 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            max-width: 400px;
-        }
-        
-        @keyframes slide-in {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        .flash-success {
-            border-color: #10b981;
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-        }
-        
-        .flash-error {
-            border-color: #ef4444;
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
-        }
-        
-        /* ДОПОЛНИТЕЛЬНЫЕ ЭФФЕКТЫ */
-        .matrix-code {
-            position: absolute;
-            color: rgba(191, 0, 255, 0.1);
-            font-size: 0.9rem;
-            font-family: monospace;
-            user-select: none;
-            z-index: -1;
-        }
-        
-        /* АДАПТИВНОСТЬ */
-        @media (max-width: 768px) {
-            .auth-matrix {
-                padding: 2.5rem 1.5rem;
-                margin: 1rem;
-            }
-            
-            .logo-neon .letter-n {
-                font-size: 3.5rem;
-            }
-            
-            .logo-text {
-                font-size: 2rem;
-            }
-            
-            .auth-title {
-                font-size: 1.8rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .auth-matrix {
-                padding: 2rem 1rem;
-            }
-            
-            .btn-neon, .input-neon {
-                padding: 1rem;
-            }
-        }
-        
-        /* АНИМАЦИЯ ПОЯВЛЕНИЯ */
-        @keyframes fade-in {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .auth-matrix {
-            animation: fade-in 0.8s ease-out;
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
-</head>
-<body>
-    <!-- КОСМИЧЕСКИЙ ФОН -->
-    <div class="stars" id="stars"></div>
-    
-    <div class="main-container">
-        <div class="auth-matrix">
-            <!-- ЛОГОТИП -->
-            <div class="logo-neon">
-                <span class="letter-n">N</span>
-                <span class="logo-text">etta</span>
-            </div>
-            
-            <!-- ЗАГОЛОВОК -->
-            <h1 class="auth-title">ВОЙТИ В МЕТАВСЕЛЕННУЮ</h1>
-            
-            <!-- ФОРМА -->
-            <form method="POST" action="/login">
-                <div class="form-group">
-                    <input type="text" name="username" class="input-neon" required 
-                           placeholder="👤 Имя пользователя или Email">
-                </div>
-                
-                <div class="form-group">
-                    <input type="password" name="password" class="input-neon" required 
-                           placeholder="🔒 Пароль">
-                </div>
-                
-                <button type="submit" class="btn-neon">
-                    🚀 ПРОДОЛЖИТЬ ПУТЕШЕСТВИЕ
-                </button>
-            </form>
-            
-            <!-- ССЫЛКИ -->
-            <div class="auth-links">
-                <a href="/register" class="auth-link">✨ СОЗДАТЬ АККАУНТ</a>
-                <a href="#" class="auth-link">🌌 ДЕМО-РЕЖИМ</a>
-            </div>
-        </div>
-    </div>
-    
-    <!-- СКРИПТ ДЛЯ ЗВЕЗД -->
-    <script>
-        // СОЗДАЕМ ЗВЕЗДНОЕ НЕБО
-        function createStars() {
-            const starsContainer = document.getElementById('stars');
-            const starCount = 150;
-            
-            for (let i = 0; i < starCount; i++) {
-                const star = document.createElement('div');
-                star.classList.add('star');
-                
-                // Случайная позиция и размер
-                const size = Math.random() * 3 + 1;
-                const x = Math.random() * 100;
-                const y = Math.random() * 100;
-                const delay = Math.random() * 5;
-                
-                star.style.width = `${size}px`;
-                star.style.height = `${size}px`;
-                star.style.left = `${x}%`;
-                star.style.top = `${y}%`;
-                star.style.animationDelay = `${delay}s`;
-                
-                starsContainer.appendChild(star);
-            }
-        }
-        
-        // СЛУЧАЙНЫЕ ЦИФРЫ МАТРИЦЫ
-        function createMatrixCode() {
-            const codes = ['01001110', '01100101', '01110100', '01110100', '01100001',
-                          '10101010', '11001100', '00110011', '11110000', '00001111'];
-            
-            const container = document.querySelector('.auth-matrix');
-            for (let i = 0; i < 20; i++) {
-                const code = document.createElement('div');
-                code.classList.add('matrix-code');
-                code.textContent = codes[Math.floor(Math.random() * codes.length)];
-                code.style.left = `${Math.random() * 100}%`;
-                code.style.top = `${Math.random() * 100}%`;
-                code.style.opacity = Math.random() * 0.1 + 0.05;
-                container.appendChild(code);
-            }
-        }
-        
-        // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
-        document.addEventListener('DOMContentLoaded', () => {
-            createStars();
-            createMatrixCode();
-            
-            // АНИМАЦИЯ ВВОДА
-            const inputs = document.querySelectorAll('.input-neon');
-            inputs.forEach(input => {
-                input.addEventListener('focus', () => {
-                    input.parentElement.style.transform = 'translateY(-5px)';
-                });
-                
-                input.addEventListener('blur', () => {
-                    input.parentElement.style.transform = 'translateY(0)';
-                });
-            });
-            
-            // ПРОВЕРКА УВЕДОМЛЕНИЙ
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    const flashContainer = document.createElement('div');
-                    flashContainer.className = 'flash-container';
-                    document.body.appendChild(flashContainer);
-                    
-                    {% for category, message in messages %}
-                        const flash = document.createElement('div');
-                        flash.className = `flash-neon flash-{{ category }}`;
-                        flash.innerHTML = `
-                            <span>{{ '✅' if category == 'success' else '⚠️' }}</span>
-                            <span>{{ message }}</span>
-                        `;
-                        flashContainer.appendChild(flash);
-                        
-                        // АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ
-                        setTimeout(() => {
-                            flash.style.animation = 'slide-out 0.5s forwards';
-                            setTimeout(() => flash.remove(), 500);
-                        }, 5000);
-                    {% endfor %}
-                    
-                    // СТИЛЬ ДЛЯ ВЫХОДА
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        @keyframes slide-out {
-                            from { transform: translateX(0); opacity: 1; }
-                            to { transform: translateX(100%); opacity: 0; }
-                        }
-                    `;
-                    document.head.appendChild(style);
-                {% endif %}
-            {% endwith %}
-        });
-    </script>
-</body>
-</html>'''
-
-REGISTER_HTML = '''<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌌 Netta | Стать частью вселенной</title>
-    <style>
-        /* СТИЛИ ТАКИЕ ЖЕ КАК В LOGIN, МЕНЯЕМ ТОЛЬКО ФОРМУ */
-        :root {
-            --purple-neon: #bf00ff;
-            --purple-deep: #7c3aed;
-            --purple-light: #a855f7;
-            --purple-dark: #5b21b6;
-            --purple-gradient: linear-gradient(135deg, #7c3aed 0%, #bf00ff 100%);
-            --space-bg: #0a0a1a;
-            --card-bg: rgba(20, 15, 40, 0.9);
-            --text-glow: 0 0 20px var(--purple-neon);
-            --star-color: rgba(191, 0, 255, 0.3);
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Orbitron', 'Segoe UI', sans-serif;
-            background: var(--space-bg);
-            color: white;
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-        }
-        
-        .stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
-        
-        .main-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .auth-matrix {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid transparent;
-            border-radius: 30px;
-            padding: 4rem;
-            width: 100%;
-            max-width: 600px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 
-                0 0 50px rgba(124, 58, 237, 0.3),
-                inset 0 0 30px rgba(191, 0, 255, 0.1);
-            animation: matrix-border 3s infinite linear, fade-in 0.8s ease-out;
-            border-image: var(--purple-gradient) 1;
-        }
-        
-        @keyframes matrix-border {
-            0% { border-image-source: linear-gradient(0deg, #7c3aed, #bf00ff); }
-            100% { border-image-source: linear-gradient(360deg, #7c3aed, #bf00ff); }
-        }
-        
-        .logo-neon {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        
-        .logo-neon .letter-n {
-            display: inline-block;
-            font-size: 5rem;
-            font-weight: 900;
-            background: var(--purple-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: var(--text-glow);
-            animation: neon-pulse 2s infinite alternate;
-        }
-        
-        @keyframes neon-pulse {
-            from { filter: drop-shadow(0 0 10px var(--purple-neon)); }
-            to { filter: drop-shadow(0 0 30px var(--purple-neon)); }
-        }
-        
-        .logo-text {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(45deg, #a855f7, #ffffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-left: 15px;
-            letter-spacing: 3px;
-        }
-        
-        .auth-title {
-            text-align: center;
-            font-size: 2.2rem;
-            margin-bottom: 2.5rem;
-            background: var(--purple-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            position: relative;
-        }
-        
-        .auth-title::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 150px;
-            height: 3px;
-            background: var(--purple-gradient);
-            border-radius: 2px;
-        }
-        
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .form-group {
-            position: relative;
-        }
-        
-        .input-neon {
-            width: 100%;
-            padding: 1.2rem 1.5rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 15px;
-            color: white;
-            font-size: 1.1rem;
-            font-family: 'Segoe UI', sans-serif;
-            transition: all 0.4s;
-        }
-        
-        .input-neon:focus {
-            outline: none;
-            border-color: var(--purple-neon);
-            box-shadow: 0 0 25px rgba(191, 0, 255, 0.4);
-            background: rgba(255, 255, 255, 0.08);
-            transform: translateY(-2px);
-        }
-        
-        .btn-neon {
-            width: 100%;
-            padding: 1.3rem;
-            background: var(--purple-gradient);
-            border: none;
-            border-radius: 15px;
-            color: white;
-            font-size: 1.2rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.4s;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .btn-neon:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 
-                0 10px 30px rgba(124, 58, 237, 0.4),
-                0 0 50px rgba(191, 0, 255, 0.3);
-        }
-        
-        .auth-links {
-            text-align: center;
-            margin-top: 2.5rem;
-        }
-        
-        .auth-link {
-            color: #a855f7;
-            text-decoration: none;
-            font-weight: 500;
-            position: relative;
-            padding: 0.5rem 1rem;
-            transition: 0.3s;
-        }
-        
-        .auth-link::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: var(--purple-gradient);
-            transition: width 0.3s;
-        }
-        
-        .auth-link:hover::after {
-            width: 100%;
-        }
-        
-        .terms {
-            margin: 2rem 0;
-            text-align: center;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.9rem;
-        }
-        
-        @media (max-width: 768px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .auth-matrix {
-                padding: 2.5rem 1.5rem;
-                margin: 1rem;
-            }
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div class="stars" id="stars"></div>
-    
-    <div class="main-container">
-        <div class="auth-matrix">
-            <div class="logo-neon">
-                <span class="letter-n">N</span>
-                <span class="logo-text">etta</span>
-            </div>
-            
-            <h1 class="auth-title">СТАТЬ ЧАСТЬЮ ВСЕЛЕННОЙ</h1>
-            
-            <form method="POST" action="/register">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <input type="text" name="username" class="input-neon" required 
-                               placeholder="👤 Имя пользователя">
-                    </div>
-                    
-                    <div class="form-group">
-                        <input type="email" name="email" class="input-neon" required 
-                               placeholder="📧 Email адрес">
-                    </div>
-                    
-                    <div class="form-group">
-                        <input type="password" name="password" class="input-neon" required 
-                               placeholder="🔒 Пароль">
-                    </div>
-                    
-                    <div class="form-group">
-                        <input type="password" name="confirm_password" class="input-neon" required 
-                               placeholder="🔁 Подтвердите пароль">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <input type="text" name="full_name" class="input-neon" 
-                           placeholder="🌟 Ваше имя (необязательно)">
-                </div>
-                
-                <div class="terms">
-                    Нажимая кнопку, вы соглашаетесь с правилами нашей вселенной
-                </div>
-                
-                <button type="submit" class="btn-neon">
-                    🪐 СОЗДАТЬ ПРОСТРАНСТВО
-                </button>
-            </form>
-            
-            <div class="auth-links">
-                <a href="/login" class="auth-link">← ВЕРНУТЬСЯ К ВХОДУ</a>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // СОЗДАЕМ ЗВЕЗДЫ
-        function createStars() {
-            const starsContainer = document.getElementById('stars');
-            for (let i = 0; i < 150; i++) {
-                const star = document.createElement('div');
-                star.classList.add('star');
-                star.style.cssText = `
-                    position: absolute;
-                    background: rgba(191, 0, 255, 0.3);
-                    border-radius: 50%;
-                    width: ${Math.random() * 3 + 1}px;
-                    height: ${Math.random() * 3 + 1}px;
-                    left: ${Math.random() * 100}%;
-                    top: ${Math.random() * 100}%;
-                    animation: twinkle ${Math.random() * 5 + 3}s infinite;
-                `;
-                starsContainer.appendChild(star);
-            }
-            
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes twinkle {
-                    0%, 100% { opacity: 0.3; }
-                    50% { opacity: 1; }
-                }
-                .star { position: absolute; }
-            `;
-            document.head.appendChild(style);
-        }
-        
-        document.addEventListener('DOMContentLoaded', createStars);
-    </script>
-</body>
-</html>'''
-
-DASHBOARD_HTML = '''<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌌 Netta | Космическая лента</title>
-    <style>
-        :root {
-            --purple-neon: #bf00ff;
-            --purple-deep: #7c3aed;
-            --purple-light: #a855f7;
-            --purple-dark: #5b21b6;
-            --purple-gradient: linear-gradient(135deg, #7c3aed 0%, #bf00ff 100%);
-            --space-bg: #0a0a1a;
-            --card-bg: rgba(20, 15, 40, 0.9);
-            --sidebar-bg: rgba(10, 5, 25, 0.95);
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Orbitron', 'Segoe UI', sans-serif;
-            background: var(--space-bg);
-            color: white;
-            min-height: 100vh;
-        }
-        
-        /* ШАПКА */
-        .header {
-            background: var(--sidebar-bg);
-            backdrop-filter: blur(20px);
-            border-bottom: 2px solid var(--purple-deep);
-            padding: 1rem 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 5px 30px rgba(124, 58, 237, 0.2);
-        }
-        
-        .navbar {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-        }
-        
-        .logo-icon {
-            width: 45px;
-            height: 45px;
-            background: var(--purple-gradient);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: 900;
-            color: white;
-            animation: neon-pulse 2s infinite alternate;
-        }
-        
-        @keyframes neon-pulse {
-            from { box-shadow: 0 0 20px var(--purple-neon); }
-            to { box-shadow: 0 0 40px var(--purple-neon); }
-        }
-        
-        .logo-text {
-            font-size: 1.8rem;
-            font-weight: 900;
-            background: linear-gradient(45deg, #a855f7, #ffffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        /* ПОИСК */
-        .search-bar {
-            flex: 1;
-            max-width: 500px;
-            margin: 0 2rem;
-            position: relative;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 0.8rem 1.5rem 0.8rem 3rem;
-            background: rgba(255, 255, 255, 0.07);
-            border: 2px solid rgba(124, 58, 237, 0.4);
-            border-radius: 25px;
-            color: white;
-            font-size: 1rem;
-            transition: 0.3s;
-        }
-        
-        .search-input:focus {
-            outline: none;
-            border-color: var(--purple-neon);
-            box-shadow: 0 0 20px rgba(191, 0, 255, 0.3);
-        }
-        
-        /* ИКОНКИ */
-        .nav-icons {
-            display: flex;
-            gap: 1.5rem;
-            align-items: center;
-        }
-        
-        .nav-icon {
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(124, 58, 237, 0.1);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 50%;
-            color: #a855f7;
-            text-decoration: none;
-            font-size: 1.2rem;
-            transition: 0.3s;
-            position: relative;
-        }
-        
-        .nav-icon:hover {
-            background: rgba(124, 58, 237, 0.2);
-            border-color: var(--purple-neon);
-            transform: translateY(-3px);
-            box-shadow: 0 5px 20px rgba(191, 0, 255, 0.3);
-        }
-        
-        .badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: var(--purple-gradient);
-            color: white;
-            font-size: 0.7rem;
-            font-weight: bold;
-            min-width: 20px;
-            height: 20px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-        }
-        
-        /* ОСНОВНОЙ КОНТЕНТ */
-        .main-layout {
-            max-width: 1400px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-            display: grid;
-            grid-template-columns: 280px 1fr 350px;
-            gap: 2rem;
-            min-height: calc(100vh - 80px);
-        }
-        
-        /* САЙДБАР */
-        .sidebar {
-            position: sticky;
-            top: 90px;
-            height: fit-content;
-        }
-        
-        .user-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 20px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-        
-        .user-avatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: {{ current_user.avatar_color }};
-            margin: 0 auto 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: bold;
-            border: 3px solid var(--purple-neon);
-            box-shadow: 0 0 20px {{ current_user.avatar_color }};
-        }
-        
-        /* СОЗДАНИЕ ПОСТА */
-        .create-post {
-            background: var(--card-bg);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 20px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            backdrop-filter: blur(10px);
-        }
-        
-        .post-editor {
-            width: 100%;
-            min-height: 120px;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 15px;
-            color: white;
-            font-size: 1rem;
-            resize: vertical;
-            margin-bottom: 1rem;
-        }
-        
-        .post-editor:focus {
-            outline: none;
-            border-color: var(--purple-neon);
-            box-shadow: 0 0 20px rgba(191, 0, 255, 0.2);
-        }
-        
-        /* ПОСТЫ */
-        .feed {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        
-        .post {
-            background: var(--card-bg);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 20px;
-            padding: 1.5rem;
-            backdrop-filter: blur(10px);
-            transition: 0.3s;
-        }
-        
-        .post:hover {
-            border-color: var(--purple-neon);
-            box-shadow: 0 10px 30px rgba(191, 0, 255, 0.2);
-            transform: translateY(-5px);
-        }
-        
-        /* ПРАВАЯ КОЛОНКА */
-        .right-sidebar {
-            position: sticky;
-            top: 90px;
-            height: fit-content;
-        }
-        
-        .widget {
-            background: var(--card-bg);
-            border: 2px solid rgba(124, 58, 237, 0.3);
-            border-radius: 20px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            backdrop-filter: blur(10px);
-        }
-        
-        /* АДАПТИВНОСТЬ */
-        @media (max-width: 1200px) {
-            .main-layout {
-                grid-template-columns: 250px 1fr;
-            }
-            .right-sidebar {
-                display: none;
-            }
-        }
-        
-        @media (max-width: 992px) {
-            .main-layout {
-                grid-template-columns: 1fr;
-                padding: 1rem;
-            }
-            .sidebar {
-                display: none;
-            }
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
-    <!-- ШАПКА -->
-    <header class="header">
-        <nav class="navbar">
-            <!-- ЛОГО -->
-            <a href="/" class="logo">
-                <div class="logo-icon">N</div>
-                <div class="logo-text">etta</div>
-            </a>
-            
-            <!-- ПОИСК -->
-            <div class="search-bar">
-                <input type="text" class="search-input" placeholder="🔍 Поиск во вселенной...">
-            </div>
-            
-            <!-- ИКОНКИ -->
-            <div class="nav-icons">
-                <a href="#" class="nav-icon" title="Главная">
-                    <i class="fas fa-home"></i>
-                </a>
-                
-                <a href="#" class="nav-icon" title="Уведомления">
-                    <i class="fas fa-bell"></i>
-                    <span class="badge">3</span>
-                </a>
-                
-                <a href="#" class="nav-icon" title="Сообщения">
-                    <i class="fas fa-comments"></i>
-                    <span class="badge">5</span>
-                </a>
-                
-                <a href="#" class="nav-icon" title="Друзья">
-                    <i class="fas fa-user-friends"></i>
-                </a>
-                
-                <a href="/logout" class="nav-icon" title="Выйти">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-            </div>
-        </nav>
-    </header>
-    
-    <!-- ОСНОВНОЙ КОНТЕНТ -->
-    <main class="main-layout">
-        <!-- ЛЕВЫЙ САЙДБАР -->
-        <aside class="sidebar">
-            <!-- ПРОФИЛЬ -->
-            <div class="user-card">
-                <div class="user-avatar">
-                    {{ current_user.username[0].upper() }}
-                </div>
-                <h3 style="text-align: center; margin-bottom: 0.5rem;">
-                    {{ current_user.full_name or current_user.username }}
-                </h3>
-                <p style="text-align: center; color: #a855f7; margin-bottom: 1rem;">
-                    @{{ current_user.username }}
-                </p>
-                <p style="text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 0.9rem;">
-                    {{ current_user.bio or 'Исследователь вселенной Netta 🌌' }}
-                </p>
-            </div>
-            
-            <!-- НАВИГАЦИЯ -->
-            <div class="widget">
-                <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                    <i class="fas fa-rocket"></i> Навигация
-                </h3>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                       onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                       onmouseout="this.style.background='transparent';">
-                        <i class="fas fa-compass"></i> Исследовать
-                    </a>
-                    <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                       onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                       onmouseout="this.style.background='transparent';">
-                        <i class="fas fa-users"></i> Сообщества
-                    </a>
-                    <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                       onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                       onmouseout="this.style.background='transparent';">
-                        <i class="fas fa-gamepad"></i> Игры
-                    </a>
-                    <a href="#" style="color: white; text-decoration: none; padding: 0.8rem; border-radius: 10px; transition: 0.3s;"
-                       onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';" 
-                       onmouseout="this.style.background='transparent';">
-                        <i class="fas fa-cog"></i> Настройки
-                    </a>
-                </div>
-            </div>
-        </aside>
-        
-        <!-- ЦЕНТРАЛЬНАЯ ЛЕНТА -->
-        <section class="feed">
-            <!-- СОЗДАНИЕ ПОСТА -->
-            <div class="create-post">
-                <form method="POST" action="/create_post">
-                    <textarea name="content" class="post-editor" 
-                              placeholder="🌌 Что происходит в вашей вселенной, {{ current_user.username }}?"></textarea>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="display: flex; gap: 1rem;">
-                            <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;" 
-                                    title="Добавить фото">
-                                <i class="fas fa-image"></i>
-                            </button>
-                            <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;"
-                                    title="Добавить видео">
-                                <i class="fas fa-video"></i>
-                            </button>
-                            <button type="button" style="background: none; border: none; color: #a855f7; font-size: 1.2rem; cursor: pointer;"
-                                    title="Добавить эмоцию">
-                                <i class="fas fa-smile"></i>
-                            </button>
-                        </div>
-                        <button type="submit" style="padding: 0.8rem 2rem; background: var(--purple-gradient); border: none; 
-                                border-radius: 15px; color: white; font-weight: bold; cursor: pointer; transition: 0.3s;"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 20px rgba(191, 0, 255, 0.3)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                            <i class="fas fa-paper-plane"></i> Опубликовать
-                        </button>
-                    </div>
-                </form>
-            </div>
-            
-            <!-- ПОСТЫ -->
-            {% for post in posts %}
-            <div class="post">
-                <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                    <div style="width: 50px; height: 50px; border-radius: 50%; background: {{ post.author.avatar_color }}; 
-                         display: flex; align-items: center; justify-content: center; font-weight: bold; 
-                         margin-right: 1rem; border: 2px solid var(--purple-light);">
-                        {{ post.author.username[0].upper() }}
-                    </div>
-                    <div>
-                        <div style="font-weight: bold;">
-                            {{ post.author.full_name or post.author.username }}
-                        </div>
-                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
-                            {{ post.created_at.strftime('%d %b в %H:%M') }}
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 1rem; line-height: 1.6;">
-                    {{ post.content }}
-                </div>
-                
-                <div style="display: flex; gap: 2rem; color: rgba(255, 255, 255, 0.7);">
-                    <form method="POST" action="/like/{{ post.id }}" style="display: inline;">
-                        <button type="submit" style="background: none; border: none; color: {% if post.id in liked_posts %}var(--purple-neon){% else %}inherit{% endif %}; 
-                                cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                                onmouseover="this.style.color='var(--purple-neon)';">
-                            <i class="fas fa-heart"></i> {{ post.likes }} ❤️
-                        </button>
-                    </form>
-                    <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                            display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                            onmouseover="this.style.color='var(--purple-neon)';">
-                        <i class="fas fa-comment"></i> Комментировать
-                    </button>
-                    <button style="background: none; border: none; color: inherit; cursor: pointer; 
-                            display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; transition: 0.3s;"
-                            onmouseover="this.style.color='var(--purple-neon)';">
-                        <i class="fas fa-share"></i> Поделиться
-                    </button>
-                </div>
-            </div>
-            {% endfor %}
-        </section>
-        
-        <!-- ПРАВАЯ КОЛОНКА -->
-        <aside class="right-sidebar">
-            <!-- ТРЕНДЫ -->
-            <div class="widget">
-                <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                    <i class="fas fa-fire"></i> Тренды вселенной
-                </h3>
-                <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                    {% for trend in trends %}
-                    <div style="padding: 0.8rem; background: rgba(255, 255, 255, 0.03); border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                         onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                        <div style="font-weight: bold; color: var(--purple-light);">#{{ trend.tag }}</div>
-                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">{{ trend.count }} постов</div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <!-- ОНЛАЙН ДРУЗЬЯ -->
-            <div class="widget">
-                <h3 style="margin-bottom: 1rem; color: var(--purple-light);">
-                    <i class="fas fa-satellite"></i> В сети сейчас
-                </h3>
-                <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                    {% for friend in online_friends %}
-                    <div style="display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem; border-radius: 10px; cursor: pointer; transition: 0.3s;"
-                         onmouseover="this.style.background='rgba(124, 58, 237, 0.1)';">
-                        <div style="width: 40px; height: 40px; border-radius: 50%; background: {{ friend.avatar_color }}; 
-                             display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #10b981;">
-                            {{ friend.username[0].upper() }}
-                        </div>
-                        <div>
-                            <div style="font-weight: bold;">{{ friend.username }}</div>
-                            <div style="font-size: 0.8rem; color: #10b981;">
-                                <i class="fas fa-circle" style="font-size: 0.6rem;"></i> Онлайн
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </aside>
-    </main>
-    
-    <!-- ФУТЕР -->
-    <footer style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(124, 58, 237, 0.2);">
-        <div style="max-width: 1400px; margin: 0 auto;">
-            <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: 0.3s;"
-                   onmouseover="this.style.color='var(--purple-light)';">
-                    О Netta
-                </a>
-                <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: 0.3s;"
-                   onmouseover="this.style.color='var(--purple-light)';">
-                    Помощь
-                </a>
-                <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: 0.3s;"
-                   onmouseover="this.style.color='var(--purple-light)';">
-                    Конфиденциальность
-                </a>
-                <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: 0.3s;"
-                   onmouseover="this.style.color='var(--purple-light)';">
-                    Условия
-                </a>
-                <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: 0.3s;"
-                   onmouseover="this.style.color='var(--purple-light)';">
-                    Разработчикам
-                </a>
-            </div>
-            <div style="margin-bottom: 1rem;">
-                <span style="color: var(--purple-light); font-weight: bold;">Netta</span> 
-                — Социальная сеть нового поколения 🌌
-            </div>
-            <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.4);">
-                © 2026 Netta Universe. Все права защищены.
-            </div>
-        </div>
-    </footer>
-    
-    <script>
-        // АНИМАЦИИ И ЭФФЕКТЫ
-        document.addEventListener('DOMContentLoaded', function() {
-            // Анимация постов при прокрутке
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                    }
-                });
-            });
-            
-            document.querySelectorAll('.post').forEach(post => {
-                post.style.opacity = '0';
-                post.style.transform = 'translateY(20px)';
-                post.style.transition = 'opacity 0.5s, transform 0.5s';
-                observer.observe(post);
-            });
-            
-            // Эффект при наведении на кнопки лайков
-            document.querySelectorAll('button[type="submit"]').forEach(button => {
-                if (button.innerHTML.includes('fa-heart')) {
-                    button.addEventListener('click', function(e) {
-                        // Предотвращаем отправку для анимации
-                        setTimeout(() => {
-                            const heart = document.createElement('div');
-                            heart.innerHTML = '❤️';
-                            heart.style.position = 'fixed';
-                            heart.style.fontSize = '2rem';
-                            heart.style.color = '#bf00ff';
-                            heart.style.zIndex = '10000';
-                            heart.style.pointerEvents = 'none';
-                            
-                            const rect = button.getBoundingClientRect();
-                            heart.style.left = (rect.left + rect.width/2 - 16) + 'px';
-                            heart.style.top = (rect.top - 32) + 'px';
-                            
-                            document.body.appendChild(heart);
-                            
-                            // Анимация
-                            heart.animate([
-                                { transform: 'translateY(0) scale(1)', opacity: 1 },
-                                { transform: 'translateY(-100px) scale(1.5)', opacity: 0 }
-                            ], {
-                                duration: 800,
-                                easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
-                            }).onfinish = () => heart.remove();
-                        }, 100);
-                    });
-                }
-            });
-            
-            // ЭФФЕКТ ПАДАЮЩИХ ЗВЕЗД
-            function createFallingStars() {
-                setInterval(() => {
-                    if (Math.random() > 0.7) {
-                        const star = document.createElement('div');
-                        star.style.cssText = `
-                            position: fixed;
-                            width: 2px;
-                            height: 20px;
-                            background: linear-gradient(to bottom, transparent, #bf00ff, transparent);
-                            top: -20px;
-                            left: ${Math.random() * 100}%;
-                            z-index: -1;
-                            animation: fall 2s linear forwards;
-                        `;
-                        document.body.appendChild(star);
-                        
-                        setTimeout(() => star.remove(), 2000);
-                    }
-                }, 1000);
-                
-                const style = document.createElement('style');
-                style.textContent = `
-                    @keyframes fall {
-                        to { transform: translateY(100vh) rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-            
-            createFallingStars();
-        });
-    </script>
-</body>
-</html>'''
-
-# ============ МАРШРУТЫ ============
-
-@app.route('/')
-def index():
-    try:
-        if current_user.is_authenticated:
-            current_user.last_seen = datetime.utcnow()
-            db.session.commit()
-            
-            posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
-            liked_posts = []
-            
-            # Если есть модель Like, получаем лайки пользователя
-            try:
-                liked_posts = [like.post_id for like in current_user.likes]
-            except:
-                liked_posts = []
-            
-            # Простой HTML для теста
-            return f'''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Netta | Тест</title>
-                <style>
-                    body {{ background: #0a0a1a; color: white; font-family: sans-serif; padding: 2rem; }}
-                    .card {{ background: rgba(20, 15, 40, 0.9); padding: 2rem; border-radius: 20px; margin: 1rem 0; }}
-                </style>
-            </head>
-            <body>
-                <h1>🌌 Добро пожаловать в Netta, {current_user.username}!</h1>
-                <p>Это тестовая страница для отладки</p>
-                <div class="card">
-                    <h3>Ваши данные:</h3>
-                    <p>Username: {current_user.username}</p>
-                    <p>Email: {current_user.email}</p>
-                    <p>Постов: {len(posts)}</p>
-                </div>
-                <div class="card">
-                    <a href="/logout" style="color: #a855f7;">Выйти</a>
-                </div>
-            </body>
-            </html>
-            '''
-        
-        # Если не авторизован - показываем логин
-        return LOGIN_HTML
-        
-    except Exception as e:
-        # Возвращаем ошибку для отладки
-        return f'''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Ошибка Netta</title>
-            <style>
-                body {{ background: #0a0a1a; color: white; padding: 2rem; font-family: monospace; }}
-                .error {{ color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: 10px; }}
-            </style>
-        </head>
-        <body>
-            <h1>🚨 Ошибка в Netta</h1>
-            <div class="error">
-                <h3>Ошибка: {str(e)}</h3>
-                <p>Тип: {type(e).__name__}</p>
-            </div>
-            <p>Попробуйте:</p>
-            <ul>
-                <li><a href="/login" style="color: #a855f7;">Войти заново</a></li>
-                <li><a href="/register" style="color: #a855f7;">Создать новый аккаунт</a></li>
-            </ul>
-        </body>
-        </html>
-        ''', 500
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated:
-        return redirect('/')
-    
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        user = User.query.filter((User.username == username) | (User.email == username)).first()
-        
-        if user and user.check_password(password):
-            user.last_seen = datetime.utcnow()
-            db.session.commit()
-            login_user(user)
-            flash('Добро пожаловать в метавселенную Netta! 🌌', 'success')
-            return redirect('/')
-        else:
-            flash('Неверные данные. Попробуйте снова.', 'error')
-    
-    return LOGIN_HTML
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect('/')
-    
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
-        full_name = request.form.get('full_name', '')
-        
-        # Валидация
-        if password != confirm_password:
-            flash('Пароли не совпадают! 🔐', 'error')
-            return REGISTER_HTML
-        
-        if User.query.filter_by(username=username).first():
-            flash('Это имя пользователя уже занято! 👤', 'error')
-            return REGISTER_HTML
-        
-        if User.query.filter_by(email=email).first():
-            flash('Этот email уже используется! 📧', 'error')
-            return REGISTER_HTML
-        
-        if len(password) < 6:
-            flash('Пароль должен быть минимум 6 символов! ⚠️', 'error')
-            return REGISTER_HTML
-        
-        # Цвета для аватара
-        colors = ['#7c3aed', '#a855f7', '#bf00ff', '#5b21b6', '#8b5cf6']
-        import random
-        
-        # Создание пользователя
-        user = User(
-            username=username,
-            email=email,
-            full_name=full_name,
-            avatar_color=random.choice(colors)
-        )
-        user.set_password(password)
-        
-        db.session.add(user)
-        db.session.commit()
-        
-        flash('Ваше пространство создано! Добро пожаловать в Netta! 🚀', 'success')
-        return redirect('/login')
-    
-    return REGISTER_HTML
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    flash('Вы покинули вселенную Netta. Возвращайтесь скорее! 👋', 'success')
-    return redirect('/login')
-
-@app.route('/create_post', methods=['POST'])
-@login_required
-def create_post():
-    content = request.form['content']
-    if content.strip():
-        post = Post(content=content, user_id=current_user.id)
-        db.session.add(post)
-        db.session.commit()
-        flash('Ваш пост запущен в космос! 🌠', 'success')
     return redirect('/')
 
 @app.route('/like/<int:post_id>', methods=['POST'])
@@ -3016,30 +730,28 @@ def create_post():
 def like_post(post_id):
     post = Post.query.get(post_id)
     if post:
-        existing_like = next((like for like in current_user.likes if like.post_id == post_id), None)
+        existing_like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+        
         if existing_like:
             db.session.delete(existing_like)
-            post.likes = max(0, post.likes - 1)
+            post.likes_count = max(0, post.likes_count - 1)
         else:
-            from flask_login import current_user
-            like = type('Like', (), {})()
-            like.user_id = current_user.id
-            like.post_id = post_id
-            like.created_at = datetime.utcnow()
-            post.likes += 1
+            like = Like(user_id=current_user.id, post_id=post_id)
+            db.session.add(like)
+            post.likes_count += 1
+            current_user.add_xp(5)
         
         db.session.commit()
     
     return redirect('/')
 
-# Обработка 404
 @app.errorhandler(404)
 def not_found(error):
     return '''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>404 - Потерялся в космосе</title>
+        <title>404 - Netta</title>
         <style>
             body {
                 background: #0a0a1a;
@@ -3050,123 +762,47 @@ def not_found(error):
                 height: 100vh;
                 margin: 0;
                 text-align: center;
-                font-family: 'Orbitron', sans-serif;
-            }
-            .container {
-                max-width: 600px;
-                padding: 2rem;
-            }
-            h1 {
-                font-size: 8rem;
-                margin: 0;
-                background: linear-gradient(45deg, #7c3aed, #bf00ff);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                animation: neon-pulse 2s infinite alternate;
-            }
-            .btn {
-                display: inline-block;
-                margin-top: 2rem;
-                padding: 1rem 2rem;
-                background: linear-gradient(135deg, #7c3aed, #5b21b6);
-                color: white;
-                text-decoration: none;
-                border-radius: 15px;
-                font-weight: bold;
-                transition: 0.3s;
-            }
-            .btn:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 10px 30px rgba(191, 0, 255, 0.3);
             }
         </style>
     </head>
     <body>
-        <div class="container">
+        <div>
             <h1>404</h1>
-            <h2>Вы потерялись в космосе</h2>
-            <p>Эта планета еще не открыта. Возвращайтесь на базу!</p>
-            <a href="/" class="btn">🚀 Вернуться на Землю</a>
+            <p>Страница не найдена</p>
+            <a href="/" style="color: #a855f7;">На главную</a>
         </div>
     </body>
     </html>
     ''', 404
-# Отладочный маршрут
-@app.route('/debug')
-def debug():
-    users = User.query.all()
-    posts = Post.query.all()
-    
-    return f'''
-    <!DOCTYPE html>
-    <html>
-    <head><title>Debug Netta</title></head>
-    <body style="background: #0a0a1a; color: white; padding: 2rem;">
-        <h1>🐛 Отладка Netta</h1>
-        <h3>Пользователи ({len(users)}):</h3>
-        <ul>
-            {"".join(f"<li>{u.username} - {u.email}</li>" for u in users)}
-        </ul>
-        <h3>Посты ({len(posts)}):</h3>
-        <ul>
-            {"".join(f"<li>Пост #{p.id}: {p.content[:50]}...</li>" for p in posts)}
-        </ul>
-        <h3>Пути:</h3>
-        <ul>
-            <li><a href="/" style="color: #a855f7;">/ - Главная</a></li>
-            <li><a href="/login" style="color: #a855f7;">/login - Вход</a></li>
-            <li><a href="/register" style="color: #a855f7;">/register - Регистрация</a></li>
-            <li><a href="/logout" style="color: #a855f7;">/logout - Выход</a></li>
-        </ul>
-    </body>
-    </html>
-    '''
-# Запуск приложения
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         
-        # Создаем тестовых пользователей если их нет
         if not User.query.first():
-            test_users = [
-                {'username': 'admin', 'email': 'admin@netta.com', 'password': 'admin123', 'full_name': 'Админ Вселенной', 'avatar_color': '#bf00ff'},
-                {'username': 'cosmos', 'email': 'cosmos@netta.com', 'password': 'cosmos123', 'full_name': 'Космический Путешественник', 'avatar_color': '#7c3aed'},
-                {'username': 'nebula', 'email': 'nebula@netta.com', 'password': 'nebula123', 'full_name': 'Туманность Андромеды', 'avatar_color': '#a855f7'},
+            users = [
+                {'username': 'admin', 'email': 'admin@netta.com', 'password': 'admin123', 'full_name': 'Админ'},
+                {'username': 'user1', 'email': 'user1@netta.com', 'password': 'user1123', 'full_name': 'Пользователь 1'},
+                {'username': 'user2', 'email': 'user2@netta.com', 'password': 'user2123', 'full_name': 'Пользователь 2'}
             ]
             
-            for user_data in test_users:
+            colors = ['#7c3aed', '#a855f7', '#bf00ff']
+            
+            for i, user_data in enumerate(users):
                 user = User(
                     username=user_data['username'],
                     email=user_data['email'],
                     full_name=user_data['full_name'],
-                    avatar_color=user_data['avatar_color']
+                    avatar_color=colors[i % len(colors)],
+                    cover_color=colors[(i + 1) % len(colors)],
+                    level=random.randint(1, 5),
+                    coins=random.randint(100, 500)
                 )
                 user.set_password(user_data['password'])
                 db.session.add(user)
             
-            # Тестовые посты
-            posts = [
-                'Привет всем! Это новая социальная сеть Netta! 🌌',
-                'Кто хочет исследовать новые галактики вместе? 🚀',
-                'Сегодня наблюдал за звездопадом. Невероятное зрелище! ✨',
-                'Разрабатываю новый космический корабль. Есть идеи? 🛸',
-                'Фиолетовый - цвет бесконечности и тайн вселенной! 🟣'
-            ]
-            
-            for i, content in enumerate(posts):
-                post = Post(
-                    content=content,
-                    user_id=(i % 3) + 1,  # Распределяем по пользователям
-                    likes=i * 2 + 1
-                )
-                db.session.add(post)
-            
             db.session.commit()
-            print("✅ База данных создана с тестовыми данными!")
-            print("👤 Тестовые пользователи:")
-            print("   admin / admin123")
-            print("   cosmos / cosmos123")
-            print("   nebula / nebula123")
+            print("База данных создана!")
     
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
